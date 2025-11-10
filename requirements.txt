@@ -1,0 +1,16 @@
+# Core dependencies for Speech-to-Text Dictation Tool
+
+# Audio capture library (Python bindings for PortAudio)
+PyAudio==0.2.14
+
+# Keyboard listener and controller for hotkeys and text injection
+pynput==1.7.6
+
+# Optimized Whisper implementation with GPU support and int8 quantization
+# This is the key library that enables running quality models in 2GB VRAM
+faster-whisper==1.0.3
+
+# Optional: For CUDA GPU acceleration (if you have CUDA installed)
+# If you don't have CUDA, faster-whisper will automatically fall back to CPU
+# Uncomment the following if you need to install CUDA toolkit dependencies:
+# ctranslate2==4.3.1
