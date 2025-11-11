@@ -925,7 +925,11 @@ class VoiceCommandProcessor:
         if command.startswith("move"):
             return self._handle_move_command(command)
 
-        # Click commands
+        # Click numbered element (check BEFORE regular click commands)
+        elif command.startswith("click") and any(digit in command for digit in "0123456789"):
+            return self._handle_click_number_command(command)
+
+        # Regular click commands (left/right)
         elif command.startswith("click"):
             return self._handle_click_command(command)
 
@@ -982,10 +986,6 @@ class VoiceCommandProcessor:
 
         elif "hide numbers" in command or "hide grid" in command or "close overlay" in command:
             return self._handle_hide_overlay_command()
-
-        # Click numbered element (must check after other "click" commands)
-        elif "click" in command and any(digit in command for digit in "0123456789"):
-            return self._handle_click_number_command(command)
 
         # Unknown command
         else:
