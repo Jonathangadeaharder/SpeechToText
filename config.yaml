@@ -41,11 +41,13 @@ audio:
 model:
   # Model size: tiny.en, base.en, small.en, medium.en, large-v2
   # Larger models are more accurate but slower and use more resources
-  name: small.en
+  # Using base.en for good quality/speed balance on CPU
+  name: base.en
 
   # Device: cuda (GPU) or cpu
   # Set to "auto" to automatically detect and use GPU if available
-  device: auto
+  # Using CPU mode by default to avoid CUDA version conflicts
+  device: cpu
 
   # Compute type: int8, int8_float16, float16, float32
   # int8 uses less VRAM but may be slightly less accurate
