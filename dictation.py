@@ -68,6 +68,8 @@ except Exception as e:
 # --- Module 2: Audio Capture ---
 p = pyaudio.PyAudio()
 STREAM = None
+# Calculate sample size once at startup to avoid race condition during shutdown
+SAMPLE_SIZE = p.get_sample_size(FORMAT)
 
 
 def audio_callback(in_data, _frame_count, _time_info, _status):
@@ -157,9 +159,9 @@ def transcribe_audio(frames):
         return
 
     try:
-        # Calculate sample size before creating WAV buffer
-        # This avoids accessing PyAudio instance that may be terminated during shutdown
-        sample_size = p.get_sample_size(FORMAT)
+        # Use pre-calculated sample size to avoid accessing PyAudio instance
+        # that may be terminated during shutdown
+        sample_size = SAMPLE_SIZE
 
         # Save raw audio data to an in-memory WAV file
         wav_buffer = io.BytesIO()

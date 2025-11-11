@@ -42,6 +42,7 @@ venv.bak/
 # Keep the models directory structure but ignore the model files
 models/*
 !models/.gitkeep
+!models/README.md
 *.bin
 
 # Audio files (temporary recordings)

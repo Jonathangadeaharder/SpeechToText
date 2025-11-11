@@ -229,6 +229,7 @@ class TestAudioCallbackBehavior(unittest.TestCase):
         """Test that callback returns paContinue when recording."""
         is_recording = True
         audio_frames = []
+        status = None  # Initialize for robustness
 
         # Simulate callback
         in_data = b"\x00" * 1024
@@ -241,7 +242,6 @@ class TestAudioCallbackBehavior(unittest.TestCase):
 
     def test_callback_completes_when_not_recording(self):
         """Test that callback returns paComplete when not recording."""
-        is_recording = False
         audio_frames = []
 
         # Simulate callback - when not recording, status should be paComplete
