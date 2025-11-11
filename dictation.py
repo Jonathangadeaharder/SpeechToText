@@ -22,10 +22,13 @@ from faster_whisper import WhisperModel
 from pynput import keyboard
 
 # --- Configuration ---
-HOTKEY_COMBINATION = {keyboard.Key.ctrl, keyboard.Key.cmd}  # .cmd is the Win key
+HOTKEY_COMBINATION = {keyboard.Key.ctrl, keyboard.Key.cmd}  # .cmd is Win key on Windows/Linux, Cmd key on macOS
 CURRENTLY_PRESSED = set()
 IS_RECORDING = False
 AUDIO_FRAMES = []
+# Thread synchronization
+RECORDING_LOCK = threading.Lock()
+FRAMES_LOCK = threading.Lock()
 
 # Audio settings (optimized for Whisper)
 SAMPLE_RATE = 16000
@@ -70,10 +73,14 @@ def audio_callback(in_data, _frame_count, _time_info, _status):
     Callback function called by PyAudio in a separate thread.
     Appends audio data to buffer while recording flag is True.
     """
-    if IS_RECORDING:
-        AUDIO_FRAMES.append(in_data)
-        return (in_data, pyaudio.paContinue)
-    return (in_data, pyaudio.paComplete)
+    with RECORDING_LOCK:
+        is_recording = IS_RECORDING
+
+    if is_recording:
+        with FRAMES_LOCK:
+            AUDIO_FRAMES.append(in_data)
+
+    return (in_data, pyaudio.paContinue)
 
 
 def start_recording():
@@ -82,11 +89,14 @@ def start_recording():
     Initializes audio stream and begins capturing microphone input.
     """
     global IS_RECORDING, AUDIO_FRAMES, STREAM
-    if IS_RECORDING:
-        return  # Already recording
 
-    IS_RECORDING = True
-    AUDIO_FRAMES = []
+    with RECORDING_LOCK:
+        if IS_RECORDING:
+            return  # Already recording
+        IS_RECORDING = True
+
+    with FRAMES_LOCK:
+        AUDIO_FRAMES = []
 
     try:
         STREAM = p.open(
@@ -101,7 +111,8 @@ def start_recording():
         print("\n🎤 Recording started...")
     except Exception as e:
         print(f"✗ Failed to start recording: {e}")
-        IS_RECORDING = False
+        with RECORDING_LOCK:
+            IS_RECORDING = False
 
 
 def stop_and_process_recording():
@@ -110,10 +121,12 @@ def stop_and_process_recording():
     Stops audio capture and triggers transcription in a worker thread.
     """
     global IS_RECORDING
-    if not IS_RECORDING:
-        return
 
-    IS_RECORDING = False
+    with RECORDING_LOCK:
+        if not IS_RECORDING:
+            return
+        IS_RECORDING = False
+
     print("⏹ Recording stopped. Processing...")
 
     # Wait for the stream to finish writing its last buffer
@@ -123,7 +136,8 @@ def stop_and_process_recording():
         STREAM.close()
 
     # Copy frames to a new thread to avoid blocking the listener
-    frames_copy = AUDIO_FRAMES.copy()
+    with FRAMES_LOCK:
+        frames_copy = AUDIO_FRAMES.copy()
     threading.Thread(target=transcribe_audio, args=(frames_copy,), daemon=True).start()
 
 
@@ -139,11 +153,15 @@ def transcribe_audio(frames):
         return
 
     try:
+        # Calculate sample size before creating WAV buffer
+        # This avoids accessing PyAudio instance that may be terminated during shutdown
+        sample_size = p.get_sample_size(FORMAT)
+
         # Save raw audio data to an in-memory WAV file
         wav_buffer = io.BytesIO()
         with wave.open(wav_buffer, "wb") as wf:
             wf.setnchannels(CHANNELS)
-            wf.setsampwidth(p.get_sample_size(FORMAT))
+            wf.setsampwidth(sample_size)
             wf.setframerate(SAMPLE_RATE)
             wf.writeframes(b"".join(frames))
 
@@ -191,7 +209,10 @@ def on_release(key):
     Stops recording and triggers transcription when either hotkey is released.
     """
     if key in HOTKEY_COMBINATION:
-        if IS_RECORDING:
+        with RECORDING_LOCK:
+            is_recording = IS_RECORDING
+
+        if is_recording:
             stop_and_process_recording()
         if key in CURRENTLY_PRESSED:
             CURRENTLY_PRESSED.remove(key)

@@ -122,7 +122,7 @@ You can modify the following parameters in `dictation.py`:
 
 ### Hotkey Combination
 ```python
-# Change the hotkey (line 22)
+# Change the hotkey (line 24)
 HOTKEY_COMBINATION = {keyboard.Key.ctrl, keyboard.Key.cmd}
 
 # Examples:
@@ -132,7 +132,7 @@ HOTKEY_COMBINATION = {keyboard.Key.ctrl, keyboard.Key.cmd}
 
 ### Model Selection
 ```python
-# Change the Whisper model (line 46)
+# Change the Whisper model (line 44)
 WHISPER_MODEL = WhisperModel("small.en", device="cuda", compute_type="int8")
 
 # Available models (English-only):
@@ -144,7 +144,7 @@ WHISPER_MODEL = WhisperModel("small.en", device="cuda", compute_type="int8")
 
 ### Audio Settings
 ```python
-# Audio capture settings (lines 29-32)
+# Audio capture settings (lines 30-33)
 SAMPLE_RATE = 16000  # Whisper requires 16kHz
 CHANNELS = 1         # Mono audio
 CHUNK_SIZE = 1024    # Buffer size (lower = less latency)
