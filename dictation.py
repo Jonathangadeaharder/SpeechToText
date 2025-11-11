@@ -525,10 +525,18 @@ class VoiceActivityDetector:
             True if speech detected, False if silence
         """
         # Convert bytes to numpy array
+        if not audio_data or len(audio_data) == 0:
+            return False
+
         audio_array = np.frombuffer(audio_data, dtype=np.int16)
 
+        if len(audio_array) == 0:
+            return False
+
         # Calculate RMS (Root Mean Square) energy
-        rms = np.sqrt(np.mean(audio_array**2))
+        # Use float64 to avoid overflow, then clip to prevent sqrt of negative
+        mean_square = np.mean(audio_array.astype(np.float64) ** 2)
+        rms = np.sqrt(np.maximum(mean_square, 0))
 
         # Normalize to 0-1 range (16-bit audio has max value of 32767)
         normalized_rms = rms / 32767.0
