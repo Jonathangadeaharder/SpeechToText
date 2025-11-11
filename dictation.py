@@ -19,6 +19,7 @@ Architecture:
 import io
 import logging
 import os
+import platform
 import re
 import sys
 import threading
@@ -135,7 +136,7 @@ class Config:
             },
         }
 
-    def _setup_logging(self):
+    def _setup_logging(self) -> None:
         """Setup logging based on configuration."""
         log_level = getattr(logging, self.config["advanced"].get("log_level", "INFO"), logging.INFO)
         logging.basicConfig(
@@ -183,16 +184,19 @@ class AudioFeedback:
     @staticmethod
     def play_beep(frequency: int, duration: int, pyaudio_instance):
         """Play a beep sound."""
+        stream = None
         try:
             beep_data = AudioFeedback.generate_beep(frequency, duration)
             stream = pyaudio_instance.open(
                 format=pyaudio.paInt16, channels=1, rate=44100, output=True
             )
             stream.write(beep_data)
-            stream.stop_stream()
-            stream.close()
         except Exception as e:
             logging.warning(f"Failed to play beep: {e}")
+        finally:
+            if stream:
+                stream.stop_stream()
+                stream.close()
 
 
 # --- Module 3: Voice Command Processor ---
@@ -325,8 +329,8 @@ class VoiceCommandProcessor:
             self.command_count = 0
             self.last_command = f"move {direction}"
 
-        # Exponential scaling: base * 2^count
-        step_size = self.base_step_size * (2**self.command_count)
+        # Exponential scaling: base * 2^count, capped at 800px
+        step_size = min(self.base_step_size * (2**self.command_count), 800)
 
         # Get current position
         current_x, current_y = self.mouse_controller.position
@@ -352,8 +356,6 @@ class VoiceCommandProcessor:
             f"(x{multiplier}) → ({int(new_x)}, {int(new_y)})"
         )
 
-        return None
-
     def _handle_click_command(self, command: str) -> None:
         """Handle mouse click commands."""
         if "left" in command:
@@ -368,8 +370,6 @@ class VoiceCommandProcessor:
         # Reset command tracking after click
         self.last_command = None
         self.command_count = 0
-
-        return None
 
     def _handle_type_command(self, command: str) -> Optional[str]:
         """Handle TYPE command to dictate text."""
@@ -398,7 +398,6 @@ class VoiceCommandProcessor:
         # Reset command tracking
         self.last_command = None
         self.command_count = 0
-        return None
 
     def _handle_switch_tab_command(self) -> None:
         """Handle SWITCH TAB command to switch between browser/app tabs."""
@@ -411,7 +410,6 @@ class VoiceCommandProcessor:
         # Reset command tracking
         self.last_command = None
         self.command_count = 0
-        return None
 
 
 # --- Module 4: Text Processor ---
@@ -451,10 +449,22 @@ class TextProcessor:
 
     def _apply_punctuation_commands(self, text: str) -> str:
         """Replace spoken punctuation with actual punctuation marks."""
-        for word, punctuation in self.punctuation_map.items():
-            # Match whole words only, case-insensitive
-            pattern = r"\b" + re.escape(word) + r"\b"
-            text = re.sub(pattern, punctuation, text, flags=re.IGNORECASE)
+        if not self.punctuation_map:
+            return text
+        
+        # Sort by length descending to avoid partial matches (e.g., "period" before "per")
+        words = sorted(self.punctuation_map.keys(), key=len, reverse=True)
+        pattern = r"\b(" + "|".join(map(re.escape, words)) + r")\b"
+        
+        def repl(match):
+            word = match.group(0)
+            # Use original case-insensitive mapping
+            for k in self.punctuation_map:
+                if word.lower() == k.lower():
+                    return self.punctuation_map[k]
+            return word
+        
+        text = re.sub(pattern, repl, text, flags=re.IGNORECASE)
 
         # Clean up extra spaces around punctuation
         text = re.sub(r"\s+([.,!?;:])", r"\1", text)
@@ -467,7 +477,7 @@ class TextProcessor:
             text = re.sub(r"\b" + re.escape(phrase) + r"\b", replacement, text, flags=re.IGNORECASE)
         return text
 
-    def _execute_command(self, command: str):
+    def _execute_command(self, command: str) -> None:
         """Execute a command word action."""
         if command == "undo_last":
             # Delete the last transcribed text
@@ -480,10 +490,12 @@ class TextProcessor:
         elif command == "clear_line":
             # Clear the current line
             controller = keyboard.Controller()
-            controller.press(keyboard.Key.cmd)
+            # Use Cmd on macOS, Ctrl on Windows/Linux
+            modifier_key = keyboard.Key.cmd if platform.system() == 'Darwin' else keyboard.Key.ctrl
+            controller.press(modifier_key)
             controller.press(keyboard.Key.backspace)
             controller.release(keyboard.Key.backspace)
-            controller.release(keyboard.Key.cmd)
+            controller.release(modifier_key)
             logging.info("Cleared line")
 
 
@@ -493,10 +505,10 @@ class TextProcessor:
 class VoiceActivityDetector:
     """Detect silence/speech using audio energy analysis."""
 
-    def __init__(self, sample_rate: int, chunk_size: int, silence_threshold: float = 0.01):
+    def __init__(self, sample_rate: int, chunk_size: int, energy_threshold: float = 0.01):
         self.sample_rate = sample_rate
         self.chunk_size = chunk_size
-        self.silence_threshold = silence_threshold
+        self.energy_threshold = energy_threshold
         self.last_speech_time = time.time()
         self.speech_detected = False
 
@@ -520,7 +532,7 @@ class VoiceActivityDetector:
         normalized_rms = rms / 32767.0
 
         # Detect speech if energy exceeds threshold
-        is_speech_detected = normalized_rms > self.silence_threshold
+        is_speech_detected = normalized_rms > self.energy_threshold
 
         if is_speech_detected:
             self.last_speech_time = time.time()
@@ -532,7 +544,7 @@ class VoiceActivityDetector:
         """Get duration of silence in seconds since last speech."""
         return time.time() - self.last_speech_time
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset the detector state."""
         self.last_speech_time = time.time()
         self.speech_detected = False
@@ -548,13 +560,21 @@ class DictationEngine:
         self.config = config
         self.logger = logging.getLogger("DictationEngine")
 
-        # State management
+        # State management with thread safety
         self.is_recording = False
+        self.recording_lock = threading.Lock()
         self.continuous_mode = config.get("continuous_mode", "enabled", default=False)
+        self.continuous_mode_lock = threading.Lock()
         self.audio_frames = []
+        self.audio_frames_lock = threading.Lock()
         self.currently_pressed = set()
         self.stream = None
-        self.running = True
+        self.running = threading.Event()
+        self.running.set()
+        
+        # Failure tracking for auto-restart
+        self.consecutive_failures = 0
+        self.max_consecutive_failures = 3
 
         # Initialize components
         self.p = pyaudio.PyAudio()
@@ -566,13 +586,15 @@ class DictationEngine:
         self.sample_rate = config.get("audio", "sample_rate", default=16000)
         self.channels = config.get("audio", "channels", default=1)
         self.chunk_size = config.get("audio", "chunk_size", default=1024)
+        if self.chunk_size <= 0:
+            raise ValueError("chunk_size must be greater than 0")
         self.format = pyaudio.paInt16
 
         # VAD (Voice Activity Detection) for silence detection
-        silence_threshold_config = config.get("continuous_mode", "silence_threshold", default=2.0)
-        self.silence_threshold = silence_threshold_config
+        silence_duration_config = config.get("continuous_mode", "silence_threshold", default=2.0)
+        self.silence_duration = silence_duration_config
         self.min_audio_length = config.get("continuous_mode", "minimum_audio_length", default=0.5)
-        self.vad = VoiceActivityDetector(self.sample_rate, self.chunk_size, silence_threshold=0.02)
+        self.vad = VoiceActivityDetector(self.sample_rate, self.chunk_size, energy_threshold=0.02)
         self.vad_monitor_thread = None
         self.last_audio_chunk = None
 
@@ -586,6 +608,8 @@ class DictationEngine:
 
     def _parse_hotkeys(self, key_names: List[str]) -> Set:
         """Convert key names from config to pynput Key objects."""
+        if not key_names:
+            raise ValueError("Hotkey list cannot be empty")
         keys = set()
         for key_name in key_names:
             key_name = key_name.lower()
@@ -630,8 +654,11 @@ class DictationEngine:
 
     def audio_callback(self, in_data, _frame_count, _time_info, _status):
         """PyAudio callback for recording audio."""
-        if self.is_recording:
-            self.audio_frames.append(in_data)
+        with self.recording_lock:
+            is_recording = self.is_recording
+        if is_recording:
+            with self.audio_frames_lock:
+                self.audio_frames.append(in_data)
             self.last_audio_chunk = in_data  # Store for VAD monitoring
             return (in_data, pyaudio.paContinue)
         return (in_data, pyaudio.paComplete)
@@ -641,7 +668,15 @@ class DictationEngine:
         Monitor audio for silence in continuous mode.
         Automatically stops recording after silence threshold is exceeded.
         """
-        while self.is_recording and self.continuous_mode:
+        while True:
+            with self.recording_lock:
+                is_recording = self.is_recording
+            with self.continuous_mode_lock:
+                continuous_mode = self.continuous_mode
+            
+            if not is_recording or not continuous_mode:
+                break
+                
             if self.last_audio_chunk:
                 # Check if current chunk contains speech
                 self.vad.is_speech(self.last_audio_chunk)
@@ -650,13 +685,14 @@ class DictationEngine:
                 silence_duration = self.vad.get_silence_duration()
 
                 # Calculate total recording duration
-                num_frames = len(self.audio_frames)
+                with self.audio_frames_lock:
+                    num_frames = len(self.audio_frames)
                 recording_duration = (num_frames * self.chunk_size) / self.sample_rate
 
                 # Check if we should auto-stop
                 if (
                     self.vad.speech_detected  # We detected speech at some point
-                    and silence_duration >= self.silence_threshold
+                    and silence_duration >= self.silence_duration
                     and recording_duration >= self.min_audio_length
                 ):
                     self.logger.info(
@@ -670,11 +706,13 @@ class DictationEngine:
 
     def start_recording(self):
         """Start recording audio."""
-        if self.is_recording:
-            return
-
-        self.is_recording = True
-        self.audio_frames = []
+        with self.recording_lock:
+            if self.is_recording:
+                return
+            self.is_recording = True
+        
+        with self.audio_frames_lock:
+            self.audio_frames = []
         self.last_audio_chunk = None
 
         # Reset VAD detector
@@ -700,7 +738,9 @@ class DictationEngine:
             self.stream.start_stream()
 
             # Start silence monitoring thread in continuous mode
-            if self.continuous_mode:
+            with self.continuous_mode_lock:
+                continuous_mode = self.continuous_mode
+            if continuous_mode:
                 self.vad_monitor_thread = threading.Thread(
                     target=self._monitor_silence, daemon=True
                 )
@@ -710,14 +750,22 @@ class DictationEngine:
                 print("\n🎤 Recording started...")
         except Exception as e:
             self.logger.error(f"Failed to start recording: {e}")
-            self.is_recording = False
+            with self.recording_lock:
+                self.is_recording = False
+            if self.stream:
+                try:
+                    self.stream.close()
+                except Exception:
+                    pass
+                self.stream = None
 
     def stop_recording(self):
         """Stop recording and trigger transcription."""
-        if not self.is_recording:
-            return
-
-        self.is_recording = False
+        with self.recording_lock:
+            if not self.is_recording:
+                return
+            self.is_recording = False
+        
         print("⏹ Recording stopped. Processing...")
 
         # Play stop beep
@@ -736,7 +784,8 @@ class DictationEngine:
             self.stream = None
 
         # Transcribe in background thread
-        frames_copy = self.audio_frames.copy()
+        with self.audio_frames_lock:
+            frames_copy = self.audio_frames.copy()
         threading.Thread(target=self.transcribe_audio, args=(frames_copy,), daemon=True).start()
 
     def transcribe_audio(self, frames: List[bytes]):
@@ -745,6 +794,7 @@ class DictationEngine:
             self.logger.warning("No audio recorded")
             return
 
+        successful = False
         try:
             # Create WAV buffer
             wav_buffer = io.BytesIO()
@@ -774,29 +824,20 @@ class DictationEngine:
                 # First, check for voice commands (wake word, mouse, etc.)
                 command_result = self.command_processor.process_command(text)
 
-                # If command processor returns text, process it further
-                if command_result is not None:
-                    # Process text (punctuation, vocabulary, commands)
-                    processed_text = self.text_processor.process(command_result)
+                # If command processor returns text OR no command was detected
+                if command_result is not None or not self.command_processor.listening_for_command:
+                    text_to_process = command_result if command_result is not None else text
+                    processed_text = self.text_processor.process(text_to_process)
 
                     if processed_text:
-                        # Inject text
-                        print("⌨ Typing text...")
-                        text_injector = keyboard.Controller()
-                        text_injector.type(processed_text)
-                        print("✓ Done!\n")
-                elif command_result is None and not self.command_processor.listening_for_command:
-                    # No command detected, process as normal text
-                    processed_text = self.text_processor.process(text)
-
-                    if processed_text:
-                        # Inject text
                         print("⌨ Typing text...")
                         text_injector = keyboard.Controller()
                         text_injector.type(processed_text)
                         print("✓ Done!\n")
             else:
                 print("⚠ Transcription was empty.")
+            
+            successful = True
 
         except Exception as e:
             self.logger.error(f"Transcription error: {e}")
@@ -804,24 +845,43 @@ class DictationEngine:
 
         finally:
             # Auto-restart recording in continuous mode
-            if self.continuous_mode and self.running:
+            with self.continuous_mode_lock:
+                continuous_mode = self.continuous_mode
+            if continuous_mode and self.running.is_set():
+                if successful:
+                    self.consecutive_failures = 0
+                else:
+                    self.consecutive_failures += 1
+                    if self.consecutive_failures >= self.max_consecutive_failures:
+                        self.logger.error("Too many consecutive failures, stopping continuous mode")
+                        with self.continuous_mode_lock:
+                            self.continuous_mode = False
+                        return
+                
                 time.sleep(0.3)  # Brief pause before restarting
-                if self.continuous_mode:  # Check again in case mode was toggled
+                with self.continuous_mode_lock:
+                    continuous_mode = self.continuous_mode
+                if continuous_mode:  # Check again in case mode was toggled
                     self.logger.info("Auto-restarting recording in continuous mode...")
                     self.start_recording()
 
     def toggle_continuous_mode(self):
         """Toggle continuous dictation mode."""
-        self.continuous_mode = not self.continuous_mode
-        if self.continuous_mode:
-            silence_sec = self.silence_threshold
+        with self.continuous_mode_lock:
+            self.continuous_mode = not self.continuous_mode
+            continuous_mode = self.continuous_mode
+        
+        if continuous_mode:
+            silence_sec = self.silence_duration
             print("\n🔄 Continuous mode ENABLED")
             print(f"   (Speak naturally, auto-transcribes after {silence_sec}s silence)")
             self.start_recording()
         else:
             print("\n🔄 Continuous mode DISABLED")
             print("   (Use push-to-talk hotkey to record)")
-            if self.is_recording:
+            with self.recording_lock:
+                is_recording = self.is_recording
+            if is_recording:
                 self.stop_recording()
 
     def on_press(self, key):
@@ -832,7 +892,9 @@ class DictationEngine:
         # Check for push-to-talk
         if canonical_key in self.push_to_talk_keys:
             self.currently_pressed.add(canonical_key)
-            if self.currently_pressed == self.push_to_talk_keys and not self.continuous_mode:
+            with self.continuous_mode_lock:
+                continuous_mode = self.continuous_mode
+            if self.currently_pressed == self.push_to_talk_keys and not continuous_mode:
                 self.start_recording()
 
         # Check for toggle continuous mode
@@ -847,7 +909,11 @@ class DictationEngine:
         canonical_key = KEY_MAPPING.get(key, key)
 
         if canonical_key in self.push_to_talk_keys:
-            if not self.continuous_mode and self.is_recording:
+            with self.continuous_mode_lock:
+                continuous_mode = self.continuous_mode
+            with self.recording_lock:
+                is_recording = self.is_recording
+            if not continuous_mode and is_recording:
                 self.stop_recording()
             if canonical_key in self.currently_pressed:
                 self.currently_pressed.remove(canonical_key)
@@ -858,6 +924,7 @@ class DictationEngine:
 
     def cleanup(self):
         """Cleanup resources."""
+        self.running.clear()
         if self.stream:
             self.stream.close()
         self.p.terminate()
@@ -897,7 +964,7 @@ class SystemTrayIcon:
         print("\nShutting down from system tray...")
         self.engine.cleanup()
         icon.stop()
-        os._exit(0)
+        sys.exit(0)
 
     def on_toggle_continuous(self, icon, item):
         """Handle toggle continuous mode."""
