@@ -94,7 +94,7 @@ text_processing:
 
   # Command words that trigger special actions
   # Format: "command word": "action"
-  # Available actions: clear_line, undo_last, copy_text, paste_text
+  # Available actions: clear_line, undo_last
   command_words:
     "delete that": "undo_last"
     "scratch that": "undo_last"
