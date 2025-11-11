@@ -145,21 +145,56 @@ wake_word:
   # Default: "agent"
   word: "agent"
 
-  # Voice Commands Available:
-  # - Mouse Movement: "AGENT MOVE UP/DOWN/LEFT/RIGHT"
-  #   * Consecutive same commands increase movement exponentially (50px, 100px, 200px, 400px, etc.)
-  #   * Example: Say "AGENT MOVE UP" three times → moves 50px, then 100px, then 200px
-  # - Mouse Clicks: "AGENT CLICK LEFT" or "AGENT CLICK RIGHT"
-  # - Type Text: "AGENT TYPE [your text here]"
-  #   * Example: "AGENT TYPE Hello world" → types "Hello world"
-  # - Window Switching: "AGENT SWITCH WINDOW"
-  #   * Switches between open applications (Alt+Tab)
-  # - Tab Switching: "AGENT SWITCH TAB"
-  #   * Switches between tabs in current application (Ctrl+Tab)
-  # - Commands persist until a different command is issued
-
-  # Note: You can also just say the command after wake word is detected
-  # Example: "AGENT" [pause] "MOVE UP" [pause] "MOVE UP" [pause] "CLICK LEFT"
+  # Voice Commands Available (say "AGENT" followed by command):
+  #
+  # MOUSE CONTROL:
+  # - "MOVE UP/DOWN/LEFT/RIGHT" - Move mouse (exponential: 50→100→200→400px)
+  # - "CLICK LEFT" / "CLICK RIGHT" - Mouse clicks
+  #
+  # WINDOW & TAB MANAGEMENT:
+  # - "SWITCH WINDOW" / "SWITCH WINDOW NEXT" - Next window (Alt+Tab)
+  # - "SWITCH WINDOW PREVIOUS" - Previous window (Alt+Shift+Tab)
+  # - "SWITCH WINDOW [number]" - Switch N times (e.g., "SWITCH WINDOW 3")
+  # - "SWITCH TAB" / "SWITCH TAB NEXT" - Next tab (Ctrl+Tab)
+  # - "SWITCH TAB PREVIOUS" - Previous tab (Ctrl+Shift+Tab)
+  #
+  # TEXT SELECTION:
+  # - "SELECT ALL" - Select all text (Ctrl+A)
+  # - "SELECT LINE" - Select current line
+  # - "SELECT WORD" - Select current word
+  #
+  # CLIPBOARD:
+  # - "COPY" - Copy selection (Ctrl+C)
+  # - "CUT" - Cut selection (Ctrl+X)
+  # - "PASTE" - Paste from clipboard (Ctrl+V)
+  #
+  # UNDO/REDO:
+  # - "UNDO" - Undo last action (Ctrl+Z)
+  # - "REDO" - Redo last action (Ctrl+Y)
+  #
+  # NAVIGATION:
+  # - "GO TO START" / "GO TO TOP" - Go to document start (Ctrl+Home)
+  # - "GO TO END" / "GO TO BOTTOM" - Go to document end (Ctrl+End)
+  # - "GO TO LINE START" - Go to line start (Home)
+  # - "GO TO LINE END" - Go to line end (End)
+  #
+  # DELETION:
+  # - "DELETE WORD" - Delete previous word (Ctrl+Backspace)
+  # - "BACKSPACE" - Backspace once
+  # - "BACKSPACE [number]" - Backspace N times (e.g., "BACKSPACE 5")
+  #
+  # SCROLLING (exponential):
+  # - "SCROLL UP/DOWN/LEFT/RIGHT" - Scroll (3→6→12→24 units)
+  #
+  # PAGING:
+  # - "PAGE UP" / "PAGE DOWN" - Page navigation
+  #
+  # TYPING:
+  # - "TYPE [text]" - Type dictated text
+  #   Example: "AGENT TYPE Hello world"
+  #
+  # Note: Commands persist until different command is issued.
+  # Consecutive same commands increase intensity (mouse, scroll).
 
 # Advanced Settings
 advanced:

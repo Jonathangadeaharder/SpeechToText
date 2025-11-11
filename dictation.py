@@ -296,11 +296,39 @@ class VoiceCommandProcessor:
 
         # Window switching commands
         elif "switch window" in command:
-            return self._handle_switch_window_command()
+            return self._handle_switch_window_command(command)
 
         # Tab switching commands
         elif "switch tab" in command:
-            return self._handle_switch_tab_command()
+            return self._handle_switch_tab_command(command)
+
+        # Text selection commands
+        elif "select" in command:
+            return self._handle_select_command(command)
+
+        # Clipboard commands
+        elif command in ["copy", "cut", "paste"]:
+            return self._handle_clipboard_command(command)
+
+        # Undo/Redo commands
+        elif command in ["undo", "redo"]:
+            return self._handle_undo_redo_command(command)
+
+        # Navigation commands
+        elif "go to" in command:
+            return self._handle_navigation_command(command)
+
+        # Deletion commands
+        elif "delete" in command or "backspace" in command:
+            return self._handle_deletion_command(command)
+
+        # Scrolling commands
+        elif "scroll" in command:
+            return self._handle_scroll_command(command)
+
+        # Page navigation
+        elif "page" in command:
+            return self._handle_page_command(command)
 
         # Unknown command
         else:
@@ -389,27 +417,230 @@ class VoiceCommandProcessor:
         print("⚠ No text specified after TYPE command")
         return None
 
-    def _handle_switch_window_command(self) -> None:
+    def _handle_switch_window_command(self, command: str) -> None:
         """Handle SWITCH WINDOW command to switch between applications."""
-        # Use Alt+Tab on Windows/Linux
-        print("🪟 Switching window...")
-        with self.keyboard_controller.pressed(keyboard.Key.alt):
-            self.keyboard_controller.press(keyboard.Key.tab)
-            self.keyboard_controller.release(keyboard.Key.tab)
+        # Parse direction or number
+        if "previous" in command or "back" in command:
+            # Alt+Shift+Tab for previous window
+            print("🪟 Switching to previous window...")
+            with self.keyboard_controller.pressed(keyboard.Key.alt):
+                with self.keyboard_controller.pressed(keyboard.Key.shift):
+                    self.keyboard_controller.press(keyboard.Key.tab)
+                    self.keyboard_controller.release(keyboard.Key.tab)
+        elif any(digit in command for digit in "0123456789"):
+            # Extract number and switch N times
+            import re
+
+            numbers = re.findall(r"\d+", command)
+            if numbers:
+                count = int(numbers[0])
+                count = min(count, 20)  # Safety limit
+                print(f"🪟 Switching window {count} times...")
+                with self.keyboard_controller.pressed(keyboard.Key.alt):
+                    for _ in range(count):
+                        self.keyboard_controller.press(keyboard.Key.tab)
+                        self.keyboard_controller.release(keyboard.Key.tab)
+                        time.sleep(0.05)  # Brief delay between presses
+        else:
+            # Default: next window (Alt+Tab)
+            print("🪟 Switching to next window...")
+            with self.keyboard_controller.pressed(keyboard.Key.alt):
+                self.keyboard_controller.press(keyboard.Key.tab)
+                self.keyboard_controller.release(keyboard.Key.tab)
 
         # Reset command tracking
         self.last_command = None
         self.command_count = 0
 
-    def _handle_switch_tab_command(self) -> None:
+    def _handle_switch_tab_command(self, command: str) -> None:
         """Handle SWITCH TAB command to switch between browser/app tabs."""
-        # Use Ctrl+Tab (works in most tabbed applications)
-        print("📑 Switching tab...")
-        with self.keyboard_controller.pressed(keyboard.Key.ctrl):
-            self.keyboard_controller.press(keyboard.Key.tab)
-            self.keyboard_controller.release(keyboard.Key.tab)
+        # Check for previous/next
+        if "previous" in command or "back" in command:
+            print("📑 Switching to previous tab...")
+            with self.keyboard_controller.pressed(keyboard.Key.ctrl):
+                with self.keyboard_controller.pressed(keyboard.Key.shift):
+                    self.keyboard_controller.press(keyboard.Key.tab)
+                    self.keyboard_controller.release(keyboard.Key.tab)
+        else:
+            # Default: next tab
+            print("📑 Switching to next tab...")
+            with self.keyboard_controller.pressed(keyboard.Key.ctrl):
+                self.keyboard_controller.press(keyboard.Key.tab)
+                self.keyboard_controller.release(keyboard.Key.tab)
 
         # Reset command tracking
+        self.last_command = None
+        self.command_count = 0
+
+    def _handle_select_command(self, command: str) -> None:
+        """Handle text selection commands."""
+        if "all" in command:
+            print("📝 Selecting all...")
+            with self.keyboard_controller.pressed(keyboard.Key.ctrl):
+                self.keyboard_controller.press("a")
+                self.keyboard_controller.release("a")
+        elif "line" in command:
+            print("📝 Selecting line...")
+            self.keyboard_controller.press(keyboard.Key.home)
+            self.keyboard_controller.release(keyboard.Key.home)
+            with self.keyboard_controller.pressed(keyboard.Key.shift):
+                self.keyboard_controller.press(keyboard.Key.end)
+                self.keyboard_controller.release(keyboard.Key.end)
+        elif "word" in command:
+            print("📝 Selecting word...")
+            with self.keyboard_controller.pressed(keyboard.Key.ctrl):
+                with self.keyboard_controller.pressed(keyboard.Key.shift):
+                    self.keyboard_controller.press(keyboard.Key.right)
+                    self.keyboard_controller.release(keyboard.Key.right)
+        else:
+            print("⚠ Unknown select command. Use: SELECT ALL/LINE/WORD")
+
+        self.last_command = None
+        self.command_count = 0
+
+    def _handle_clipboard_command(self, command: str) -> None:
+        """Handle clipboard commands (copy, cut, paste)."""
+        if command == "copy":
+            print("📋 Copying...")
+            with self.keyboard_controller.pressed(keyboard.Key.ctrl):
+                self.keyboard_controller.press("c")
+                self.keyboard_controller.release("c")
+        elif command == "cut":
+            print("✂️  Cutting...")
+            with self.keyboard_controller.pressed(keyboard.Key.ctrl):
+                self.keyboard_controller.press("x")
+                self.keyboard_controller.release("x")
+        elif command == "paste":
+            print("📋 Pasting...")
+            with self.keyboard_controller.pressed(keyboard.Key.ctrl):
+                self.keyboard_controller.press("v")
+                self.keyboard_controller.release("v")
+
+        self.last_command = None
+        self.command_count = 0
+
+    def _handle_undo_redo_command(self, command: str) -> None:
+        """Handle undo/redo commands."""
+        if command == "undo":
+            print("↩️  Undoing...")
+            with self.keyboard_controller.pressed(keyboard.Key.ctrl):
+                self.keyboard_controller.press("z")
+                self.keyboard_controller.release("z")
+        elif command == "redo":
+            print("↪️  Redoing...")
+            with self.keyboard_controller.pressed(keyboard.Key.ctrl):
+                self.keyboard_controller.press("y")
+                self.keyboard_controller.release("y")
+
+        self.last_command = None
+        self.command_count = 0
+
+    def _handle_navigation_command(self, command: str) -> None:
+        """Handle navigation commands (go to start/end)."""
+        if "start" in command or "top" in command or "beginning" in command:
+            print("⬆️  Going to start...")
+            with self.keyboard_controller.pressed(keyboard.Key.ctrl):
+                self.keyboard_controller.press(keyboard.Key.home)
+                self.keyboard_controller.release(keyboard.Key.home)
+        elif "end" in command or "bottom" in command:
+            print("⬇️  Going to end...")
+            with self.keyboard_controller.pressed(keyboard.Key.ctrl):
+                self.keyboard_controller.press(keyboard.Key.end)
+                self.keyboard_controller.release(keyboard.Key.end)
+        elif "line start" in command:
+            print("⬅️  Going to line start...")
+            self.keyboard_controller.press(keyboard.Key.home)
+            self.keyboard_controller.release(keyboard.Key.home)
+        elif "line end" in command:
+            print("➡️  Going to line end...")
+            self.keyboard_controller.press(keyboard.Key.end)
+            self.keyboard_controller.release(keyboard.Key.end)
+        else:
+            print("⚠ Unknown navigation command")
+
+        self.last_command = None
+        self.command_count = 0
+
+    def _handle_deletion_command(self, command: str) -> None:
+        """Handle deletion commands (delete word, backspace N)."""
+        if "word" in command:
+            print("🗑️  Deleting word...")
+            with self.keyboard_controller.pressed(keyboard.Key.ctrl):
+                self.keyboard_controller.press(keyboard.Key.backspace)
+                self.keyboard_controller.release(keyboard.Key.backspace)
+        elif "backspace" in command:
+            # Extract number if present
+            import re
+
+            numbers = re.findall(r"\d+", command)
+            if numbers:
+                count = int(numbers[0])
+                count = min(count, 100)  # Safety limit
+                print(f"⌫ Backspacing {count} times...")
+                for _ in range(count):
+                    self.keyboard_controller.press(keyboard.Key.backspace)
+                    self.keyboard_controller.release(keyboard.Key.backspace)
+            else:
+                print("⌫ Backspace...")
+                self.keyboard_controller.press(keyboard.Key.backspace)
+                self.keyboard_controller.release(keyboard.Key.backspace)
+        else:
+            print("⚠ Unknown deletion command")
+
+        self.last_command = None
+        self.command_count = 0
+
+    def _handle_scroll_command(self, command: str) -> None:
+        """Handle scrolling commands with exponential scaling."""
+        # Determine direction
+        if "up" in command:
+            direction = "up"
+            scroll_amount = -3
+        elif "down" in command:
+            direction = "down"
+            scroll_amount = 3
+        elif "left" in command:
+            direction = "left"
+            scroll_amount = -3
+        elif "right" in command:
+            direction = "right"
+            scroll_amount = 3
+        else:
+            print("⚠ Unknown scroll direction. Use: SCROLL UP/DOWN/LEFT/RIGHT")
+            return
+
+        # Calculate exponential step size (similar to mouse movement)
+        if self.last_command == f"scroll {direction}":
+            self.command_count += 1
+        else:
+            self.command_count = 0
+            self.last_command = f"scroll {direction}"
+
+        # Exponential scaling: 3, 6, 12, 24, capped at 48
+        multiplier = min(2**self.command_count, 16)
+        final_scroll = scroll_amount * multiplier
+
+        print(f"📜 Scrolling {direction} (x{multiplier})...")
+
+        # Perform scroll
+        if direction in ["up", "down"]:
+            self.mouse_controller.scroll(0, final_scroll)
+        else:  # left/right
+            self.mouse_controller.scroll(final_scroll, 0)
+
+    def _handle_page_command(self, command: str) -> None:
+        """Handle page up/down commands."""
+        if "up" in command:
+            print("📄 Page up...")
+            self.keyboard_controller.press(keyboard.Key.page_up)
+            self.keyboard_controller.release(keyboard.Key.page_up)
+        elif "down" in command:
+            print("📄 Page down...")
+            self.keyboard_controller.press(keyboard.Key.page_down)
+            self.keyboard_controller.release(keyboard.Key.page_down)
+        else:
+            print("⚠ Unknown page command. Use: PAGE UP or PAGE DOWN")
+
         self.last_command = None
         self.command_count = 0
 
