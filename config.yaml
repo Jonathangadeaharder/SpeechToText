@@ -1,0 +1,170 @@
+# Configuration file for Speech-to-Text Dictation Tool
+# This file allows you to customize the behavior of the dictation tool
+
+# Hotkey Configuration
+hotkeys:
+  # Primary push-to-talk hotkey (hold to record, release to transcribe)
+  # Available keys: ctrl, cmd (Windows key), alt, shift, space, and any letter key
+  # Format: List of keys that must be pressed together
+  push_to_talk:
+    - ctrl
+    - cmd  # Windows key on Windows/Linux, Command key on Mac
+
+  # Toggle continuous dictation mode (press once to start, press again to stop)
+  toggle_continuous:
+    - ctrl
+    - shift
+    - d
+
+# Audio Settings
+audio:
+  # Sample rate (Hz) - Whisper requires 16000
+  sample_rate: 16000
+
+  # Number of channels (1 = mono, 2 = stereo)
+  channels: 1
+
+  # Audio chunk size (lower = less latency, higher = more stable)
+  chunk_size: 1024
+
+  # Enable audio feedback beeps
+  beep_on_start: true
+  beep_on_stop: true
+
+  # Beep frequency and duration (Hz, milliseconds)
+  start_beep_frequency: 800
+  start_beep_duration: 100
+  stop_beep_frequency: 600
+  stop_beep_duration: 100
+
+# Whisper Model Configuration
+model:
+  # Model size: tiny.en, base.en, small.en, medium.en, large-v2
+  # Larger models are more accurate but slower and use more resources
+  # Using base.en for good quality/speed balance on CPU
+  name: base.en
+
+  # Device: cuda (GPU) or cpu
+  # Set to "auto" to automatically detect and use GPU if available
+  # Using CPU mode by default to avoid CUDA version conflicts
+  device: cpu
+
+  # Compute type: int8, int8_float16, float16, float32
+  # int8 uses less VRAM but may be slightly less accurate
+  compute_type: int8
+
+  # Beam size for decoding (higher = more accurate but slower)
+  beam_size: 5
+
+  # Language (set to null for auto-detection)
+  language: en
+
+# Text Processing
+text_processing:
+  # Enable automatic punctuation command replacement
+  # When enabled, spoken words like "period" become "."
+  punctuation_commands: true
+
+  # Punctuation command mappings
+  punctuation_map:
+    period: "."
+    comma: ","
+    question mark: "?"
+    exclamation point: "!"
+    exclamation mark: "!"
+    colon: ":"
+    semicolon: ";"
+    new line: "\n"
+    new paragraph: "\n\n"
+    dash: "-"
+    hyphen: "-"
+    quote: "\""
+    open quote: "\""
+    close quote: "\""
+    apostrophe: "'"
+    open parenthesis: "("
+    close parenthesis: ")"
+    open bracket: "["
+    close bracket: "]"
+
+  # Custom vocabulary replacements
+  # Replace transcribed words/phrases with custom text
+  custom_vocabulary:
+    # Example: "dictation tool" will be replaced with "DictationTool"
+    # "dictation tool": "DictationTool"
+    # "my email": "user@example.com"
+
+  # Command words that trigger special actions
+  # Format: "command word": "action"
+  # Available actions: clear_line, undo_last
+  command_words:
+    "delete that": "undo_last"
+    "scratch that": "undo_last"
+    "clear line": "clear_line"
+
+# Continuous Dictation Mode with Auto Silence Detection
+continuous_mode:
+  # Enable continuous dictation mode by default
+  enabled: false
+
+  # Silence detection threshold (seconds)
+  # After this many seconds of silence, automatically stop recording and transcribe
+  # Uses Voice Activity Detection (VAD) to monitor audio energy levels
+  # Recommended: 1.5-3.0 seconds (lower = more responsive, higher = less false stops)
+  silence_threshold: 2.0
+
+  # Minimum audio length to transcribe (seconds)
+  # Prevents transcription of very short audio clips (e.g., background noise)
+  # Recommended: 0.3-1.0 seconds
+  minimum_audio_length: 0.5
+
+# System Tray Icon
+system_tray:
+  # Enable system tray icon
+  enabled: true
+
+  # Show notifications
+  show_notifications: true
+
+  # Notification duration (seconds)
+  notification_duration: 2
+
+# Wake Word Detection & Voice Commands
+wake_word:
+  # Enable wake word detection for voice commands
+  # When enabled, say "AGENT" followed by a command
+  enabled: true
+
+  # Wake word to listen for (case-insensitive)
+  # Default: "agent"
+  word: "agent"
+
+  # Voice Commands Available:
+  # - Mouse Movement: "AGENT MOVE UP/DOWN/LEFT/RIGHT"
+  #   * Consecutive same commands increase movement exponentially (50px, 100px, 200px, 400px, etc.)
+  #   * Example: Say "AGENT MOVE UP" three times → moves 50px, then 100px, then 200px
+  # - Mouse Clicks: "AGENT CLICK LEFT" or "AGENT CLICK RIGHT"
+  # - Type Text: "AGENT TYPE [your text here]"
+  #   * Example: "AGENT TYPE Hello world" → types "Hello world"
+  # - Window Switching: "AGENT SWITCH WINDOW"
+  #   * Switches between open applications (Alt+Tab)
+  # - Tab Switching: "AGENT SWITCH TAB"
+  #   * Switches between tabs in current application (Ctrl+Tab)
+  # - Commands persist until a different command is issued
+
+  # Note: You can also just say the command after wake word is detected
+  # Example: "AGENT" [pause] "MOVE UP" [pause] "MOVE UP" [pause] "CLICK LEFT"
+
+# Advanced Settings
+advanced:
+  # Log level: DEBUG, INFO, WARNING, ERROR
+  log_level: INFO
+
+  # Enable verbose output
+  verbose: false
+
+  # Maximum recording duration (seconds, 0 = unlimited)
+  max_recording_duration: 60
+
+  # Number of worker threads for transcription
+  transcription_threads: 1
