@@ -54,28 +54,18 @@ CHUNK_SIZE = 1024
 print("Loading transcription model (faster-whisper)...")
 print("This may take a moment on first run...")
 
-# Try to load GPU-accelerated model first, fall back to CPU if needed
+# Load CPU model (using 'base.en' for good quality/speed balance on CPU)
 WHISPER_MODEL = None
 try:
-    # Load 'small' model with int8 quantization to fit in 2GB VRAM
-    # This provides excellent quality while staying within VRAM constraints
-    WHISPER_MODEL = WhisperModel(
-        "small.en", device="cuda", compute_type="int8"  # English-only model for better performance
-    )
-    print("✓ Model 'small.en' (int8) loaded on GPU. Ready.")
-    print("  VRAM usage: ~1.5GB (safe for 2GB VRAM)")
+    print("Using CPU mode (CUDA version mismatch detected)")
+    WHISPER_MODEL = WhisperModel("base.en", device="cpu", compute_type="int8")
+    print("✓ Model 'base.en' loaded on CPU. Ready.")
+    print("  Note: CPU mode is slower but reliable.")
 except Exception as e:
-    print(f"⚠ GPU model failed to load: {e}")
-    print("Falling back to CPU model. This will be slower but still functional.")
-    try:
-        # Fallback to tiny CPU model if GPU/CUDA fails
-        WHISPER_MODEL = WhisperModel("tiny.en", device="cpu", compute_type="int8")
-        print("✓ Model 'tiny.en' loaded on CPU. Ready.")
-    except Exception as e:
-        print(f"✗ Failed to load any model: {e}")
-        print("Please ensure faster-whisper is properly installed.")
-        print("Run: pip install faster-whisper")
-        sys.exit(1)
+    print(f"✗ Failed to load model: {e}")
+    print("Please ensure faster-whisper is properly installed.")
+    print("Run: pip install faster-whisper")
+    sys.exit(1)
 
 # --- Module 2: Audio Capture ---
 p = pyaudio.PyAudio()
