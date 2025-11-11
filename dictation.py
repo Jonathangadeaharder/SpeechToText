@@ -49,8 +49,7 @@ except ImportError:
 PYWINAUTO_AVAILABLE = False
 if platform.system() == "Windows":
     try:
-        from pywinauto import Desktop
-        from pywinauto.findwindows import ElementNotFoundError
+        import pywinauto  # noqa: F401
 
         PYWINAUTO_AVAILABLE = True
     except ImportError:
@@ -399,19 +398,36 @@ class NumberedOverlay:
         print("🔍 Detecting UI elements...")
         self._cleanup_impl()
 
-        # Get foreground window
-        desktop = Desktop(backend="uia")
+        # Get foreground window using Windows API
         try:
-            # Get active window
-            active_window = desktop.windows()[0]  # Foreground window
-        except (IndexError, ElementNotFoundError):
-            raise Exception("Could not find active window")
+            import ctypes
+
+            # Get foreground window handle
+            hwnd = ctypes.windll.user32.GetForegroundWindow()
+            if not hwnd:
+                raise Exception("Could not get foreground window handle")
+
+            print(f"🪟 Foreground window handle: {hwnd}")
+
+            # Connect to window using handle
+            from pywinauto import Application
+
+            app = Application(backend="uia").connect(handle=hwnd)
+            active_window = app.window(handle=hwnd)
+
+            print(f"✓ Connected to window: {active_window.window_text()}")
+
+        except Exception as e:
+            print(f"⚠ Failed to get foreground window: {e}")
+            raise Exception(f"Could not find active window: {e}")
 
         # Find all clickable elements
         detected_elements = []
         try:
             # Get all descendants that are clickable
+            print("🔎 Scanning for UI elements...")
             elements = active_window.descendants()
+            print(f"📊 Total descendants found: {len(elements)}")
 
             for elem in elements:
                 try:
@@ -458,8 +474,10 @@ class NumberedOverlay:
 
         except Exception as e:
             self.logger.warning(f"Error detecting elements: {e}")
+            print(f"⚠ Error scanning elements: {e}")
 
         if not detected_elements:
+            print("⚠ No clickable elements found in current window")
             raise Exception("No clickable elements found")
 
         print(f"✓ Found {len(detected_elements)} clickable elements")
@@ -1063,15 +1081,25 @@ class VoiceCommandProcessor:
         )
 
     def _handle_click_command(self, command: str) -> None:
-        """Handle mouse click commands."""
+        """Handle mouse click commands and special key clicks."""
         if "left" in command:
             self.mouse_controller.click(mouse.Button.left, 1)
             print("🖱️  Left click")
         elif "right" in command:
             self.mouse_controller.click(mouse.Button.right, 1)
             print("🖱️  Right click")
+        elif "enter" in command or "return" in command:
+            print("⏎  Pressing Enter...")
+            self.keyboard_controller.press(keyboard.Key.enter)
+            self.keyboard_controller.release(keyboard.Key.enter)
+            print("✓ Enter pressed")
+        elif "space" in command:
+            print("␣  Pressing Space...")
+            self.keyboard_controller.press(keyboard.Key.space)
+            self.keyboard_controller.release(keyboard.Key.space)
+            print("✓ Space pressed")
         else:
-            print("⚠ Invalid click command. Use: CLICK LEFT or CLICK RIGHT")
+            print("⚠ Invalid click command. Use: CLICK LEFT/RIGHT/ENTER/SPACE")
 
         # Reset command tracking after click
         self.last_command = None

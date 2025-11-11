@@ -147,9 +147,11 @@ wake_word:
 
   # Voice Commands Available (say "AGENT" followed by command):
   #
-  # MOUSE CONTROL:
+  # MOUSE CONTROL & KEYBOARD:
   # - "MOVE UP/DOWN/LEFT/RIGHT" - Move mouse (exponential: 50→100→200→400px)
   # - "CLICK LEFT" / "CLICK RIGHT" - Mouse clicks
+  # - "CLICK ENTER" - Press Enter key
+  # - "CLICK SPACE" - Press Space key
   #
   # WINDOW & TAB MANAGEMENT:
   # - "SHOW WINDOWS" - Enumerate all open windows with numbers
