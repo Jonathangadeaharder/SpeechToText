@@ -520,6 +520,112 @@ class NumberedOverlay:
         print("  Say 'AGENT CLICK [number]' to click an element")
         print("  Say 'AGENT HIDE NUMBERS' to close")
 
+    def show_windows(self, windows_dict: Dict[int, tuple]):
+        """Show numbered window list in overlay."""
+        if not windows_dict:
+            print("⚠ No windows to display")
+            return
+
+        # Queue the GUI operations
+        self._queue_command(self._show_windows_impl, windows_dict)
+
+    def _show_windows_impl(self, windows_dict: Dict[int, tuple]):
+        """Implementation of show_windows - runs on GUI thread."""
+        self._cleanup_impl()
+
+        # Get screen size
+        if PYAUTOGUI_AVAILABLE:
+            screen_width, screen_height = pyautogui.size()
+        else:
+            screen_width, screen_height = 1920, 1080
+
+        # Setup overlay window
+        self.root.deiconify()  # Show window
+        self.root.attributes("-fullscreen", True)
+        self.root.attributes("-topmost", True)
+        self.root.attributes("-alpha", 0.95)
+        self.root.config(bg="black")
+        self.root.title("Window List")
+
+        # Create or clear canvas
+        if self.canvas:
+            self.canvas.delete("all")
+        else:
+            self.canvas = tk.Canvas(
+                self.root,
+                bg="black",
+                highlightthickness=0,
+                width=screen_width,
+                height=screen_height,
+            )
+            self.canvas.pack()
+
+        # Display window list
+        # Create a box in the center with the list
+        box_width = 800
+        box_height = min(600, 50 + len(windows_dict) * 40)
+        box_x = (screen_width - box_width) // 2
+        box_y = (screen_height - box_height) // 2
+
+        # Draw background box
+        self.canvas.create_rectangle(
+            box_x,
+            box_y,
+            box_x + box_width,
+            box_y + box_height,
+            fill="#1a1a1a",
+            outline="#00ff00",
+            width=3,
+        )
+
+        # Draw title
+        self.canvas.create_text(
+            box_x + box_width // 2,
+            box_y + 25,
+            text="OPEN WINDOWS - Say 'AGENT SWITCH WINDOW [number]'",
+            font=("Arial", 14, "bold"),
+            fill="#00ff00",
+        )
+
+        # Draw window list
+        y_offset = box_y + 60
+        for idx, (window, title) in windows_dict.items():
+            # Truncate long titles
+            display_title = title[:65] + "..." if len(title) > 65 else title
+
+            # Draw number box
+            num_x = box_x + 20
+            self.canvas.create_rectangle(
+                num_x, y_offset - 12, num_x + 40, y_offset + 12, fill="#00ff00", outline="#00ff00"
+            )
+            self.canvas.create_text(
+                num_x + 20, y_offset, text=str(idx), font=("Arial", 14, "bold"), fill="black"
+            )
+
+            # Draw window title
+            self.canvas.create_text(
+                num_x + 60,
+                y_offset,
+                text=display_title,
+                font=("Arial", 12),
+                fill="white",
+                anchor="w",
+            )
+
+            y_offset += 40
+
+        # Draw close instruction
+        self.canvas.create_text(
+            box_x + box_width // 2,
+            box_y + box_height - 20,
+            text="Say 'AGENT HIDE NUMBERS' to close",
+            font=("Arial", 10),
+            fill="#888888",
+        )
+
+        self.mode = "windows"
+        self.is_visible = True
+
     def hide(self):
         """Hide the numbered overlay."""
         self._queue_command(self._hide_impl)
@@ -991,8 +1097,28 @@ class VoiceCommandProcessor:
                     # Switch to specific numbered window
                     try:
                         window = self.window_list[number]
-                        print(f"🪟 Switching to window [{number}]: {window.window_text()}")
-                        window.set_focus()
+                        title = window.window_text()
+                        print(f"🪟 Switching to window [{number}]: {title}")
+
+                        # Use multiple methods to ensure window gets focus
+                        try:
+                            # Restore if minimized
+                            if window.is_minimized():
+                                window.restore()
+                            # Bring to front and activate
+                            window.set_focus()
+                            time.sleep(0.1)  # Small delay
+                            window.wrapper_object().set_focus()  # Try again with wrapper
+                        except Exception:
+                            # Fallback: use Windows API directly
+                            try:
+                                import ctypes
+
+                                hwnd = window.handle
+                                ctypes.windll.user32.SetForegroundWindow(hwnd)
+                            except Exception:
+                                pass
+
                         print(f"✓ Switched to window [{number}]")
                     except Exception as e:
                         self.logger.error(f"Failed to switch to window {number}: {e}")
@@ -1246,7 +1372,8 @@ class VoiceCommandProcessor:
                 windows = desktop.windows()
 
                 # Filter visible windows with titles
-                numbered_windows = []
+                numbered_windows = {}
+                idx = 1
                 for window in windows:
                     try:
                         if window.is_visible():
@@ -1258,19 +1385,18 @@ class VoiceCommandProcessor:
                                 and not title.startswith("MSCTFIME")
                                 and title != "Program Manager"
                             ):
-                                numbered_windows.append((window, title))
+                                self.window_list[idx] = window
+                                numbered_windows[idx] = (window, title)
+                                idx += 1
                     except Exception:
                         continue
 
-                # Store windows with numbers
-                print(f"\n📋 Found {len(numbered_windows)} windows:\n")
-                for idx, (window, title) in enumerate(numbered_windows, start=1):
-                    self.window_list[idx] = window
-                    # Truncate long titles
-                    display_title = title[:60] + "..." if len(title) > 60 else title
-                    print(f"  [{idx}] {display_title}")
-
-                print("\n✓ Say 'AGENT SWITCH WINDOW [number]' to switch to a window")
+                # Display windows in overlay
+                if numbered_windows:
+                    print(f"✓ Found {len(numbered_windows)} windows")
+                    self.overlay.show_windows(numbered_windows)
+                else:
+                    print("⚠ No windows found")
 
             except Exception as e:
                 self.logger.error(f"Failed to enumerate windows: {e}")
