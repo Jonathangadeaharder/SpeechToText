@@ -157,6 +157,10 @@ wake_word:
   # - "SWITCH WINDOW PREVIOUS" - Previous window (Alt+Shift+Tab)
   # - "SWITCH WINDOW [number]" - Switch to numbered window (use after SHOW WINDOWS)
   #     OR switch N times with Alt+Tab if no window list active
+  # - "MAXIMIZE" - Maximize current window (Win+Up)
+  # - "MINIMIZE" - Minimize current window (Win+Down)
+  # - "MOVE WINDOW LEFT" - Snap window to left half of screen (Win+Left)
+  # - "MOVE WINDOW RIGHT" - Snap window to right half of screen (Win+Right)
   # - "SWITCH TAB" / "SWITCH TAB NEXT" - Next tab (Ctrl+Tab)
   # - "SWITCH TAB PREVIOUS" - Previous tab (Ctrl+Shift+Tab)
   #
@@ -199,6 +203,8 @@ wake_word:
   # Phase 2 - Grid Mode:
   # - "SHOW GRID" - Display 3x3 numbered grid overlay (9 elements)
   #   Simple grid for precision clicking anywhere on screen
+  # - "REFINE GRID" - Increase grid subdivisions (3x3 → 5x5 → 7x7 → 9x9 → 11x11 max)
+  #   Say multiple times to keep increasing precision
   #
   # Phase 3 - Element Detection Mode (Windows only):
   # - "SHOW NUMBERS" - Auto-detect and number actual UI elements!

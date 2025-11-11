@@ -705,6 +705,9 @@ class VoiceCommandProcessor:
         # Window list for numbered window switching
         self.window_list = {}  # Maps number -> window handle/object
 
+        # Grid state
+        self.current_grid_subdivisions = 3  # Track current grid level
+
         # Load custom commands
         self.custom_commands_enabled = config.get("custom_commands", "enabled", default=False)
         self.custom_commands = []
@@ -984,8 +987,24 @@ class VoiceCommandProcessor:
         elif "show grid" in command:
             return self._handle_show_grid_command()
 
+        elif "refine grid" in command:
+            return self._handle_refine_grid_command()
+
         elif "hide numbers" in command or "hide grid" in command or "close overlay" in command:
             return self._handle_hide_overlay_command()
+
+        # Window management commands
+        elif "maximize" in command or "maximise" in command:
+            return self._handle_maximize_command()
+
+        elif "minimize" in command or "minimise" in command:
+            return self._handle_minimize_command()
+
+        elif "move window left" in command or "snap left" in command:
+            return self._handle_snap_window_command("left")
+
+        elif "move window right" in command or "snap right" in command:
+            return self._handle_snap_window_command("right")
 
         # Unknown command
         else:
@@ -1346,7 +1365,25 @@ class VoiceCommandProcessor:
     def _handle_show_grid_command(self) -> None:
         """Handle SHOW GRID command to display grid overlay."""
         print("🔢 Showing grid overlay...")
-        self.overlay.show_grid(subdivisions=3)
+        self.current_grid_subdivisions = 3  # Reset to default
+        self.overlay.show_grid(subdivisions=self.current_grid_subdivisions)
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+    def _handle_refine_grid_command(self) -> None:
+        """Handle REFINE GRID command to increase grid subdivisions."""
+        # Increase subdivisions: 3 → 5 → 7 → 9 → 11 (max)
+        if self.current_grid_subdivisions < 11:
+            self.current_grid_subdivisions += 2
+            print(
+                f"🔍 Refining grid to {self.current_grid_subdivisions}x{self.current_grid_subdivisions}..."
+            )
+            self.overlay.show_grid(subdivisions=self.current_grid_subdivisions)
+        else:
+            print(
+                f"⚠ Grid already at maximum refinement ({self.current_grid_subdivisions}x{self.current_grid_subdivisions})"
+            )
         self.last_command = None
         self.command_count = 0
         return None
@@ -1355,6 +1392,74 @@ class VoiceCommandProcessor:
         """Handle HIDE NUMBERS/GRID command to close overlay."""
         print("❌ Hiding overlay...")
         self.overlay.hide()
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+    def _handle_maximize_command(self) -> None:
+        """Handle MAXIMIZE command to maximize current window."""
+        print("⬆️  Maximizing window...")
+        # Windows: Win+Up to maximize
+        if platform.system() == "Windows":
+            with self.keyboard_controller.pressed(keyboard.Key.cmd):
+                self.keyboard_controller.press(keyboard.Key.up)
+                self.keyboard_controller.release(keyboard.Key.up)
+        else:
+            # On other platforms, try the same key combo
+            with self.keyboard_controller.pressed(keyboard.Key.cmd):
+                self.keyboard_controller.press(keyboard.Key.up)
+                self.keyboard_controller.release(keyboard.Key.up)
+        print("✓ Window maximized")
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+    def _handle_minimize_command(self) -> None:
+        """Handle MINIMIZE command to minimize current window."""
+        print("⬇️  Minimizing window...")
+        # Windows: Win+Down to minimize
+        if platform.system() == "Windows":
+            with self.keyboard_controller.pressed(keyboard.Key.cmd):
+                self.keyboard_controller.press(keyboard.Key.down)
+                self.keyboard_controller.release(keyboard.Key.down)
+        else:
+            # On other platforms, try Cmd+M (macOS) or Cmd+H
+            with self.keyboard_controller.pressed(keyboard.Key.cmd):
+                self.keyboard_controller.press("m")
+                self.keyboard_controller.release("m")
+        print("✓ Window minimized")
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+    def _handle_snap_window_command(self, direction: str) -> None:
+        """Handle MOVE WINDOW LEFT/RIGHT command to snap window to half screen."""
+        if direction == "left":
+            print("⬅️  Snapping window to left half...")
+            # Windows: Win+Left
+            if platform.system() == "Windows":
+                with self.keyboard_controller.pressed(keyboard.Key.cmd):
+                    self.keyboard_controller.press(keyboard.Key.left)
+                    self.keyboard_controller.release(keyboard.Key.left)
+            else:
+                # On macOS, there's no native snap, but we can try Win+Left anyway
+                with self.keyboard_controller.pressed(keyboard.Key.cmd):
+                    self.keyboard_controller.press(keyboard.Key.left)
+                    self.keyboard_controller.release(keyboard.Key.left)
+            print("✓ Window snapped to left")
+        elif direction == "right":
+            print("➡️  Snapping window to right half...")
+            # Windows: Win+Right
+            if platform.system() == "Windows":
+                with self.keyboard_controller.pressed(keyboard.Key.cmd):
+                    self.keyboard_controller.press(keyboard.Key.right)
+                    self.keyboard_controller.release(keyboard.Key.right)
+            else:
+                # On macOS, there's no native snap, but we can try Win+Right anyway
+                with self.keyboard_controller.pressed(keyboard.Key.cmd):
+                    self.keyboard_controller.press(keyboard.Key.right)
+                    self.keyboard_controller.release(keyboard.Key.right)
+            print("✓ Window snapped to right")
         self.last_command = None
         self.command_count = 0
         return None
