@@ -596,6 +596,9 @@ class VoiceCommandProcessor:
         # Initialize numbered overlay for screen segmentation
         self.overlay = NumberedOverlay()
 
+        # Window list for numbered window switching
+        self.window_list = {}  # Maps number -> window handle/object
+
     def _get_screen_size(self):
         """Get screen dimensions using tkinter."""
         try:
@@ -700,6 +703,10 @@ class VoiceCommandProcessor:
         # Page navigation
         elif "page" in command:
             return self._handle_page_command(command)
+
+        # Window enumeration
+        elif "show windows" in command or "list windows" in command:
+            return self._handle_show_windows_command()
 
         # Overlay commands for screen segmentation
         elif "show numbers" in command or "show elements" in command:
@@ -813,19 +820,33 @@ class VoiceCommandProcessor:
                     self.keyboard_controller.press(keyboard.Key.tab)
                     self.keyboard_controller.release(keyboard.Key.tab)
         elif any(digit in command for digit in "0123456789"):
-            # Extract number and switch N times
+            # Extract number
             import re
 
             numbers = re.findall(r"\d+", command)
             if numbers:
-                count = int(numbers[0])
-                count = min(count, 20)  # Safety limit
-                print(f"🪟 Switching window {count} times...")
-                with self.keyboard_controller.pressed(keyboard.Key.alt):
-                    for _ in range(count):
-                        self.keyboard_controller.press(keyboard.Key.tab)
-                        self.keyboard_controller.release(keyboard.Key.tab)
-                        time.sleep(0.05)  # Brief delay between presses
+                number = int(numbers[0])
+
+                # Check if we have a numbered window list
+                if self.window_list and number in self.window_list:
+                    # Switch to specific numbered window
+                    try:
+                        window = self.window_list[number]
+                        print(f"🪟 Switching to window [{number}]: {window.window_text()}")
+                        window.set_focus()
+                        print(f"✓ Switched to window [{number}]")
+                    except Exception as e:
+                        self.logger.error(f"Failed to switch to window {number}: {e}")
+                        print(f"⚠ Failed to switch to window {number}: {e}")
+                else:
+                    # Fall back to Alt+Tab N times
+                    count = min(number, 20)  # Safety limit
+                    print(f"🪟 Switching window {count} times...")
+                    with self.keyboard_controller.pressed(keyboard.Key.alt):
+                        for _ in range(count):
+                            self.keyboard_controller.press(keyboard.Key.tab)
+                            self.keyboard_controller.release(keyboard.Key.tab)
+                            time.sleep(0.05)  # Brief delay between presses
         else:
             # Default: next window (Alt+Tab)
             print("🪟 Switching to next window...")
@@ -1049,6 +1070,55 @@ class VoiceCommandProcessor:
         """Handle HIDE NUMBERS/GRID command to close overlay."""
         print("❌ Hiding overlay...")
         self.overlay.hide()
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+    def _handle_show_windows_command(self) -> None:
+        """Handle SHOW WINDOWS command to enumerate all open windows."""
+        print("🪟 Enumerating windows...")
+        self.window_list.clear()
+
+        if platform.system() == "Windows" and PYWINAUTO_AVAILABLE:
+            try:
+                from pywinauto import Desktop
+
+                desktop = Desktop(backend="uia")
+                windows = desktop.windows()
+
+                # Filter visible windows with titles
+                numbered_windows = []
+                for window in windows:
+                    try:
+                        if window.is_visible():
+                            title = window.window_text()
+                            # Skip empty titles and certain system windows
+                            if (
+                                title
+                                and title.strip()
+                                and not title.startswith("MSCTFIME")
+                                and title != "Program Manager"
+                            ):
+                                numbered_windows.append((window, title))
+                    except Exception:
+                        continue
+
+                # Store windows with numbers
+                print(f"\n📋 Found {len(numbered_windows)} windows:\n")
+                for idx, (window, title) in enumerate(numbered_windows, start=1):
+                    self.window_list[idx] = window
+                    # Truncate long titles
+                    display_title = title[:60] + "..." if len(title) > 60 else title
+                    print(f"  [{idx}] {display_title}")
+
+                print("\n✓ Say 'AGENT SWITCH WINDOW [number]' to switch to a window")
+
+            except Exception as e:
+                self.logger.error(f"Failed to enumerate windows: {e}")
+                print(f"⚠ Failed to enumerate windows: {e}")
+        else:
+            print("⚠ Window enumeration only supported on Windows with pywinauto")
+
         self.last_command = None
         self.command_count = 0
         return None

@@ -152,9 +152,11 @@ wake_word:
   # - "CLICK LEFT" / "CLICK RIGHT" - Mouse clicks
   #
   # WINDOW & TAB MANAGEMENT:
+  # - "SHOW WINDOWS" - Enumerate all open windows with numbers
   # - "SWITCH WINDOW" / "SWITCH WINDOW NEXT" - Next window (Alt+Tab)
   # - "SWITCH WINDOW PREVIOUS" - Previous window (Alt+Shift+Tab)
-  # - "SWITCH WINDOW [number]" - Switch N times (e.g., "SWITCH WINDOW 3")
+  # - "SWITCH WINDOW [number]" - Switch to numbered window (use after SHOW WINDOWS)
+  #     OR switch N times with Alt+Tab if no window list active
   # - "SWITCH TAB" / "SWITCH TAB NEXT" - Next tab (Ctrl+Tab)
   # - "SWITCH TAB PREVIOUS" - Previous tab (Ctrl+Shift+Tab)
   #
