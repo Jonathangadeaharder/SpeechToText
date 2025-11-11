@@ -235,8 +235,6 @@ class TestAudioCallbackBehavior(unittest.TestCase):
         if is_recording:
             audio_frames.append(in_data)
             status = "paContinue"
-        else:
-            status = "paComplete"
 
         self.assertEqual(status, "paContinue")
         self.assertEqual(len(audio_frames), 1)
@@ -247,9 +245,8 @@ class TestAudioCallbackBehavior(unittest.TestCase):
         audio_frames = []
 
         # Simulate callback
-        in_data = b"\x00" * 1024
         if is_recording:
-            audio_frames.append(in_data)
+            audio_frames.append(b"\x00" * 1024)
             status = "paContinue"
         else:
             status = "paComplete"
@@ -281,10 +278,7 @@ class TestIntegrationScenarios(unittest.TestCase):
         is_recording = False
         self.assertFalse(is_recording)
 
-        # Additional frames should not be added
-        if is_recording:
-            audio_frames.append(b"\x00" * 1024)
-
+        # Additional frames should not be added (is_recording is False)
         self.assertEqual(len(audio_frames), 5)
 
     def test_multiple_recording_sessions(self):
