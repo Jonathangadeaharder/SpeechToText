@@ -24,6 +24,7 @@ import re
 import sys
 import threading
 import time
+import tkinter as tk
 import wave
 from typing import Dict, List, Optional, Set
 
@@ -34,6 +35,14 @@ from faster_whisper import WhisperModel
 from PIL import Image, ImageDraw
 from pynput import keyboard, mouse
 from pystray import Icon, Menu, MenuItem
+
+try:
+    import pyautogui
+
+    PYAUTOGUI_AVAILABLE = True
+except ImportError:
+    PYAUTOGUI_AVAILABLE = False
+    logging.warning("pyautogui not available. Screen segmentation features disabled.")
 
 # --- Key Mapping for Left/Right Variants ---
 # Map physical keys to canonical keys (handles left/right variants)
@@ -199,7 +208,168 @@ class AudioFeedback:
                 stream.close()
 
 
-# --- Module 3: Voice Command Processor ---
+# --- Module 3: Numbered Overlay for Screen Element Segmentation ---
+
+
+class NumberedOverlay:
+    """
+    Numbered overlay for screen element segmentation.
+    Displays clickable numbered labels on screen for voice control.
+    """
+
+    def __init__(self):
+        self.logger = logging.getLogger("NumberedOverlay")
+        self.root = None
+        self.canvas = None
+        self.elements = {}  # Maps number -> (x, y, width, height)
+        self.labels = []  # List of label widgets
+        self.is_visible = False
+        self.mode = None  # 'grid' or 'elements'
+        self.grid_level = 0  # For hierarchical grid zooming
+        self.grid_offset = (0, 0)  # Current grid offset for zooming
+
+    def show_grid(self, subdivisions: int = 3):
+        """Show a numbered grid overlay for precision clicking."""
+        if not PYAUTOGUI_AVAILABLE:
+            print("⚠ PyAutoGUI not available. Install with: pip install pyautogui")
+            return
+
+        self._cleanup()
+
+        # Get screen size
+        screen_width, screen_height = pyautogui.size()
+
+        # Calculate grid cell size
+        cell_width = screen_width // subdivisions
+        cell_height = screen_height // subdivisions
+
+        # Create transparent overlay window
+        self.root = tk.Tk()
+        self.root.attributes("-fullscreen", True)
+        self.root.attributes("-topmost", True)
+        self.root.attributes("-alpha", 0.7)
+        self.root.config(bg="black")
+        self.root.title("Voice Control Grid")
+
+        # Make window click-through on Windows
+        if platform.system() == "Windows":
+            self.root.attributes("-transparentcolor", "black")
+
+        self.canvas = tk.Canvas(
+            self.root, bg="black", highlightthickness=0, width=screen_width, height=screen_height
+        )
+        self.canvas.pack()
+
+        # Draw grid and create numbered elements
+        number = 1
+        for row in range(subdivisions):
+            for col in range(subdivisions):
+                x1 = col * cell_width
+                y1 = row * cell_height
+                x2 = x1 + cell_width
+                y2 = y1 + cell_height
+
+                # Draw grid cell border
+                self.canvas.create_rectangle(
+                    x1, y1, x2, y2, outline="cyan", width=2, fill="", stipple="gray12"
+                )
+
+                # Calculate center position for label
+                center_x = x1 + cell_width // 2
+                center_y = y1 + cell_height // 2
+
+                # Store element position (center of grid cell)
+                self.elements[number] = (center_x, center_y, cell_width, cell_height)
+
+                # Create label with background
+                self.canvas.create_oval(
+                    center_x - 25,
+                    center_y - 25,
+                    center_x + 25,
+                    center_y + 25,
+                    fill="cyan",
+                    outline="blue",
+                    width=3,
+                )
+                self.canvas.create_text(
+                    center_x,
+                    center_y,
+                    text=str(number),
+                    font=("Arial", 24, "bold"),
+                    fill="black",
+                )
+
+                number += 1
+
+        self.mode = "grid"
+        self.is_visible = True
+        print(f"✓ Grid overlay shown with {len(self.elements)} cells")
+        print("  Say 'AGENT CLICK [number]' to click a cell")
+        print("  Say 'AGENT HIDE NUMBERS' to close")
+
+        # Start mainloop in separate thread
+        threading.Thread(target=self.root.mainloop, daemon=True).start()
+
+    def show_numbers(self, max_elements: int = 20):
+        """
+        Show numbered overlays on clickable screen elements.
+        For Phase 2, uses a simple grid-based approach.
+        """
+        if not PYAUTOGUI_AVAILABLE:
+            print("⚠ PyAutoGUI not available. Install with: pip install pyautogui")
+            return
+
+        # For now, show a finer grid for more precision
+        self.show_grid(subdivisions=5)  # 5x5 grid = 25 elements
+
+    def hide(self):
+        """Hide the numbered overlay."""
+        self._cleanup()
+        print("✓ Overlay hidden")
+
+    def click_element(self, number: int, button: str = "left"):
+        """Click on a numbered element."""
+        if number not in self.elements:
+            print(f"⚠ Element {number} not found")
+            return
+
+        x, y, _, _ = self.elements[number]
+
+        # Move mouse and click
+        pyautogui.moveTo(x, y, duration=0.2)
+        time.sleep(0.1)
+
+        if button == "left":
+            pyautogui.click(x, y)
+            print(f"✓ Clicked element {number} at ({x}, {y})")
+        elif button == "right":
+            pyautogui.rightClick(x, y)
+            print(f"✓ Right-clicked element {number} at ({x}, {y})")
+        elif button == "middle":
+            pyautogui.middleClick(x, y)
+            print(f"✓ Middle-clicked element {number} at ({x}, {y})")
+        elif button == "double":
+            pyautogui.doubleClick(x, y)
+            print(f"✓ Double-clicked element {number} at ({x}, {y})")
+
+    def _cleanup(self):
+        """Clean up overlay resources."""
+        if self.root:
+            try:
+                self.root.quit()
+                self.root.destroy()
+            except Exception:
+                pass
+            self.root = None
+
+        self.canvas = None
+        self.elements = {}
+        self.labels = []
+        self.is_visible = False
+        self.mode = None
+
+
+# --- Module 4: Voice Command Processor ---
 
 
 class VoiceCommandProcessor:
@@ -224,6 +394,9 @@ class VoiceCommandProcessor:
         # Get screen dimensions
         self.screen_width, self.screen_height = self._get_screen_size()
         self.logger.info(f"Screen size: {self.screen_width}x{self.screen_height}")
+
+        # Initialize numbered overlay for screen segmentation
+        self.overlay = NumberedOverlay()
 
     def _get_screen_size(self):
         """Get screen dimensions using tkinter."""
@@ -329,6 +502,20 @@ class VoiceCommandProcessor:
         # Page navigation
         elif "page" in command:
             return self._handle_page_command(command)
+
+        # Overlay commands for screen segmentation
+        elif "show numbers" in command or "show elements" in command:
+            return self._handle_show_numbers_command()
+
+        elif "show grid" in command:
+            return self._handle_show_grid_command()
+
+        elif "hide numbers" in command or "hide grid" in command or "close overlay" in command:
+            return self._handle_hide_overlay_command()
+
+        # Click numbered element (must check after other "click" commands)
+        elif "click" in command and any(digit in command for digit in "0123456789"):
+            return self._handle_click_number_command(command)
 
         # Unknown command
         else:
@@ -644,8 +831,59 @@ class VoiceCommandProcessor:
         self.last_command = None
         self.command_count = 0
 
+    def _handle_show_numbers_command(self) -> None:
+        """Handle SHOW NUMBERS command to display numbered overlay."""
+        print("🔢 Showing numbered overlay...")
+        self.overlay.show_numbers()
+        self.last_command = None
+        self.command_count = 0
+        return None
 
-# --- Module 4: Text Processor ---
+    def _handle_show_grid_command(self) -> None:
+        """Handle SHOW GRID command to display grid overlay."""
+        print("🔢 Showing grid overlay...")
+        self.overlay.show_grid(subdivisions=3)
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+    def _handle_hide_overlay_command(self) -> None:
+        """Handle HIDE NUMBERS/GRID command to close overlay."""
+        print("❌ Hiding overlay...")
+        self.overlay.hide()
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+    def _handle_click_number_command(self, command: str) -> None:
+        """Handle CLICK [number] commands for numbered overlay elements."""
+        # Extract number from command
+        numbers = re.findall(r"\d+", command)
+        if not numbers:
+            print("⚠ No number found in click command")
+            return None
+
+        element_number = int(numbers[0])
+
+        # Determine click type
+        if "right" in command:
+            button = "right"
+        elif "middle" in command:
+            button = "middle"
+        elif "double" in command:
+            button = "double"
+        else:
+            button = "left"
+
+        # Perform click
+        self.overlay.click_element(element_number, button=button)
+
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+
+# --- Module 5: Text Processor ---
 
 
 class TextProcessor:
@@ -1076,7 +1314,8 @@ class DictationEngine:
                 # In always_listening mode, only process if wake word was detected
                 wake_word_detected = self.command_processor.listening_for_command or (
                     self.wake_word_always_listening
-                    and self.config.get("wake_word", "word", default="agent").lower() in text.lower()
+                    and self.config.get("wake_word", "word", default="agent").lower()
+                    in text.lower()
                 )
 
                 # If in always_listening mode and no wake word, skip typing
