@@ -14,3 +14,21 @@ faster-whisper==1.0.3
 # If you don't have CUDA, faster-whisper will automatically fall back to CPU
 # Uncomment the following if you need to install CUDA toolkit dependencies:
 # ctranslate2==4.3.1
+
+# Development dependencies
+# Install with: pip install -r requirements.txt -r requirements-dev.txt
+# Or create a separate requirements-dev.txt file
+
+# Code formatting
+black==25.11.0
+
+# Linting
+pylint==4.0.2
+flake8==7.3.0
+
+# Type checking
+mypy==1.18.2
+
+# Testing
+pytest==9.0.0
+pytest-cov==7.0.0

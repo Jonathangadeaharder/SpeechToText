@@ -12,13 +12,14 @@ Architecture:
 - Module 4: Text Injection (pynput)
 """
 
-import pyaudio
-import wave
 import io
-import threading
 import sys
-from pynput import keyboard
+import threading
+import wave
+
+import pyaudio
 from faster_whisper import WhisperModel
+from pynput import keyboard
 
 # --- Configuration ---
 HOTKEY_COMBINATION = {keyboard.Key.ctrl, keyboard.Key.cmd}  # .cmd is the Win key
@@ -42,9 +43,7 @@ try:
     # Load 'small' model with int8 quantization to fit in 2GB VRAM
     # This provides excellent quality while staying within VRAM constraints
     WHISPER_MODEL = WhisperModel(
-        "small.en",  # English-only model for better performance
-        device="cuda",
-        compute_type="int8"
+        "small.en", device="cuda", compute_type="int8"  # English-only model for better performance
     )
     print("✓ Model 'small.en' (int8) loaded on GPU. Ready.")
     print("  VRAM usage: ~1.5GB (safe for 2GB VRAM)")
@@ -65,17 +64,17 @@ except Exception as e:
 p = pyaudio.PyAudio()
 STREAM = None
 
-def audio_callback(in_data, frame_count, time_info, status):
+
+def audio_callback(in_data, _frame_count, _time_info, _status):
     """
     Callback function called by PyAudio in a separate thread.
     Appends audio data to buffer while recording flag is True.
     """
-    global AUDIO_FRAMES
     if IS_RECORDING:
         AUDIO_FRAMES.append(in_data)
         return (in_data, pyaudio.paContinue)
-    else:
-        return (in_data, pyaudio.paComplete)
+    return (in_data, pyaudio.paComplete)
+
 
 def start_recording():
     """
@@ -96,7 +95,7 @@ def start_recording():
             rate=SAMPLE_RATE,
             input=True,
             frames_per_buffer=CHUNK_SIZE,
-            stream_callback=audio_callback
+            stream_callback=audio_callback,
         )
         STREAM.start_stream()
         print("\n🎤 Recording started...")
@@ -104,12 +103,13 @@ def start_recording():
         print(f"✗ Failed to start recording: {e}")
         IS_RECORDING = False
 
+
 def stop_and_process_recording():
     """
     Called by the hotkey release event.
     Stops audio capture and triggers transcription in a worker thread.
     """
-    global IS_RECORDING, STREAM
+    global IS_RECORDING
     if not IS_RECORDING:
         return
 
@@ -126,6 +126,7 @@ def stop_and_process_recording():
     frames_copy = AUDIO_FRAMES.copy()
     threading.Thread(target=transcribe_audio, args=(frames_copy,), daemon=True).start()
 
+
 def transcribe_audio(frames):
     """
     Runs in a worker thread to process audio and inject text.
@@ -140,21 +141,18 @@ def transcribe_audio(frames):
     try:
         # Save raw audio data to an in-memory WAV file
         wav_buffer = io.BytesIO()
-        with wave.open(wav_buffer, 'wb') as wf:
+        with wave.open(wav_buffer, "wb") as wf:
             wf.setnchannels(CHANNELS)
             wf.setsampwidth(p.get_sample_size(FORMAT))
             wf.setframerate(SAMPLE_RATE)
-            wf.writeframes(b''.join(frames))
+            wf.writeframes(b"".join(frames))
 
         wav_buffer.seek(0)
 
         # --- Module 3: Transcribe using faster-whisper ---
         print("🧠 Transcribing...")
-        segments, info = WHISPER_MODEL.transcribe(
-            wav_buffer,
-            beam_size=5,
-            language="en",
-            condition_on_previous_text=False
+        segments, _info = WHISPER_MODEL.transcribe(
+            wav_buffer, beam_size=5, language="en", condition_on_previous_text=False
         )
 
         # Collect all transcribed text from segments
@@ -174,29 +172,30 @@ def transcribe_audio(frames):
     except Exception as e:
         print(f"✗ Error during transcription: {e}")
 
+
 # --- Module 1: Hotkey Listener ---
 def on_press(key):
     """
     Callback for pynput listener when a key is pressed.
     Starts recording when both hotkeys are pressed.
     """
-    global CURRENTLY_PRESSED
     if key in HOTKEY_COMBINATION:
         CURRENTLY_PRESSED.add(key)
         if CURRENTLY_PRESSED == HOTKEY_COMBINATION:
             start_recording()
+
 
 def on_release(key):
     """
     Callback for pynput listener when a key is released.
     Stops recording and triggers transcription when either hotkey is released.
     """
-    global CURRENTLY_PRESSED
     if key in HOTKEY_COMBINATION:
         if IS_RECORDING:
             stop_and_process_recording()
         if key in CURRENTLY_PRESSED:
             CURRENTLY_PRESSED.remove(key)
+
 
 # --- Main Application Logic ---
 def main():
@@ -224,6 +223,7 @@ def main():
             STREAM.close()
         p.terminate()
         print("Goodbye!")
+
 
 if __name__ == "__main__":
     main()
