@@ -127,17 +127,27 @@ system_tray:
   # Notification duration (seconds)
   notification_duration: 2
 
-# Wake Word Detection
+# Wake Word Detection & Voice Commands
 wake_word:
-  # Enable wake word detection
-  # When enabled, say the wake word to start recording
-  enabled: false
+  # Enable wake word detection for voice commands
+  # When enabled, say "AGENT" followed by a command
+  enabled: true
 
-  # Wake word to listen for
-  word: "hey computer"
+  # Wake word to listen for (case-insensitive)
+  # Default: "agent"
+  word: "agent"
 
-  # Sensitivity (0.0 to 1.0, higher = more sensitive but more false positives)
-  sensitivity: 0.5
+  # Voice Commands Available:
+  # - Mouse Movement: "AGENT MOVE UP/DOWN/LEFT/RIGHT"
+  #   * Consecutive same commands increase movement exponentially (50px, 100px, 200px, 400px, etc.)
+  #   * Example: Say "AGENT MOVE UP" three times → moves 50px, then 100px, then 200px
+  # - Mouse Clicks: "AGENT CLICK LEFT" or "AGENT CLICK RIGHT"
+  # - Type Text: "AGENT TYPE [your text here]"
+  #   * Example: "AGENT TYPE Hello world" → types "Hello world"
+  # - Commands persist until a different command is issued
+
+  # Note: You can also just say the command after wake word is detected
+  # Example: "AGENT" [pause] "MOVE UP" [pause] "MOVE UP" [pause] "CLICK LEFT"
 
 # Advanced Settings
 advanced:

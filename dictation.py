@@ -31,7 +31,7 @@ import pyaudio
 import yaml
 from faster_whisper import WhisperModel
 from PIL import Image, ImageDraw
-from pynput import keyboard
+from pynput import keyboard, mouse
 from pystray import Icon, Menu, MenuItem
 
 # --- Module 1: Configuration Manager ---
@@ -182,7 +182,192 @@ class AudioFeedback:
             logging.warning(f"Failed to play beep: {e}")
 
 
-# --- Module 3: Text Processor ---
+# --- Module 3: Voice Command Processor ---
+
+
+class VoiceCommandProcessor:
+    """Process voice commands for mouse control and actions."""
+
+    def __init__(self, config: Config):
+        self.config = config
+        self.logger = logging.getLogger("VoiceCommandProcessor")
+        self.mouse_controller = mouse.Controller()
+        self.keyboard_controller = keyboard.Controller()
+
+        # Wake word configuration
+        self.wake_word = config.get("wake_word", "word", default="agent").lower()
+        self.wake_word_enabled = config.get("wake_word", "enabled", default=True)
+        self.listening_for_command = False
+
+        # Command tracking for exponential movement
+        self.last_command = None
+        self.command_count = 0
+        self.base_step_size = 50  # Base movement in pixels
+
+        # Get screen dimensions
+        self.screen_width, self.screen_height = self._get_screen_size()
+        self.logger.info(f"Screen size: {self.screen_width}x{self.screen_height}")
+
+    def _get_screen_size(self):
+        """Get screen dimensions using tkinter."""
+        try:
+            import tkinter as tk
+
+            root = tk.Tk()
+            root.withdraw()  # Hide the window
+            width = root.winfo_screenwidth()
+            height = root.winfo_screenheight()
+            root.destroy()
+            return width, height
+        except Exception as e:
+            self.logger.warning(f"Could not get screen size: {e}, using defaults")
+            return 1920, 1080  # Default fallback
+
+    def process_command(self, text: str) -> Optional[str]:
+        """
+        Process voice command or return text for typing.
+
+        Args:
+            text: Transcribed text
+
+        Returns:
+            Text to type, or None if command was executed
+        """
+        if not text:
+            return None
+
+        text_lower = text.lower().strip()
+
+        # Check for wake word
+        if self.wake_word in text_lower and self.wake_word_enabled:
+            self.listening_for_command = True
+            self.logger.info(f"Wake word '{self.wake_word}' detected!")
+            print("🎯 Wake word detected! Listening for command...")
+
+            # Extract command after wake word
+            wake_word_index = text_lower.index(self.wake_word)
+            command_text = text_lower[wake_word_index + len(self.wake_word) :].strip()
+
+            if command_text:
+                return self._execute_command(command_text)
+            return None
+
+        # If we're in command mode but no wake word, treat as command
+        if self.listening_for_command:
+            return self._execute_command(text_lower)
+
+        # Otherwise, return text for normal typing
+        return None
+
+    def _execute_command(self, command: str) -> Optional[str]:
+        """Execute a voice command."""
+        command = command.strip()
+
+        # Mouse movement commands
+        if command.startswith("move"):
+            return self._handle_move_command(command)
+
+        # Click commands
+        elif command.startswith("click"):
+            return self._handle_click_command(command)
+
+        # Type command
+        elif command.startswith("type"):
+            return self._handle_type_command(command)
+
+        # Unknown command
+        else:
+            self.logger.warning(f"Unknown command: {command}")
+            print(f"⚠ Unknown command: {command}")
+            self.listening_for_command = False
+            return None
+
+    def _handle_move_command(self, command: str) -> None:
+        """Handle mouse movement commands with exponential scaling."""
+        # Parse direction
+        if "up" in command:
+            direction = "up"
+        elif "down" in command:
+            direction = "down"
+        elif "left" in command:
+            direction = "left"
+        elif "right" in command:
+            direction = "right"
+        else:
+            print("⚠ Invalid move command. Use: MOVE UP/DOWN/LEFT/RIGHT")
+            return None
+
+        # Calculate exponential step size
+        if self.last_command == f"move {direction}":
+            self.command_count += 1
+        else:
+            self.command_count = 0
+            self.last_command = f"move {direction}"
+
+        # Exponential scaling: base * 2^count
+        step_size = self.base_step_size * (2**self.command_count)
+
+        # Get current position
+        current_x, current_y = self.mouse_controller.position
+
+        # Calculate new position
+        new_x, new_y = current_x, current_y
+
+        if direction == "up":
+            new_y = max(0, current_y - step_size)
+        elif direction == "down":
+            new_y = min(self.screen_height - 1, current_y + step_size)
+        elif direction == "left":
+            new_x = max(0, current_x - step_size)
+        elif direction == "right":
+            new_x = min(self.screen_width - 1, current_x + step_size)
+
+        # Move mouse
+        self.mouse_controller.position = (new_x, new_y)
+
+        multiplier = 2**self.command_count
+        print(
+            f"🖱️  Moved {direction} by {step_size}px "
+            f"(x{multiplier}) → ({int(new_x)}, {int(new_y)})"
+        )
+
+        return None
+
+    def _handle_click_command(self, command: str) -> None:
+        """Handle mouse click commands."""
+        if "left" in command:
+            self.mouse_controller.click(mouse.Button.left, 1)
+            print("🖱️  Left click")
+        elif "right" in command:
+            self.mouse_controller.click(mouse.Button.right, 1)
+            print("🖱️  Right click")
+        else:
+            print("⚠ Invalid click command. Use: CLICK LEFT or CLICK RIGHT")
+
+        # Reset command tracking after click
+        self.last_command = None
+        self.command_count = 0
+
+        return None
+
+    def _handle_type_command(self, command: str) -> Optional[str]:
+        """Handle TYPE command to dictate text."""
+        # Extract text after "type"
+        type_index = command.find("type")
+        if type_index >= 0:
+            text_to_type = command[type_index + 4 :].strip()
+            if text_to_type:
+                print(f"⌨️  Typing: '{text_to_type}'")
+                self.listening_for_command = False
+                self.last_command = None
+                self.command_count = 0
+                return text_to_type
+
+        print("⚠ No text specified after TYPE command")
+        return None
+
+
+# --- Module 4: Text Processor ---
 
 
 class TextProcessor:
@@ -255,7 +440,7 @@ class TextProcessor:
             logging.info("Cleared line")
 
 
-# --- Module 4: Voice Activity Detector ---
+# --- Module 5: Voice Activity Detector ---
 
 
 class VoiceActivityDetector:
@@ -306,7 +491,7 @@ class VoiceActivityDetector:
         self.speech_detected = False
 
 
-# --- Module 5: Dictation Engine ---
+# --- Module 6: Dictation Engine ---
 
 
 class DictationEngine:
@@ -327,6 +512,7 @@ class DictationEngine:
         # Initialize components
         self.p = pyaudio.PyAudio()
         self.text_processor = TextProcessor(config)
+        self.command_processor = VoiceCommandProcessor(config)
         self.whisper_model = self._load_whisper_model()
 
         # Audio settings
@@ -538,15 +724,30 @@ class DictationEngine:
             if text:
                 print(f"✓ Transcription: '{text}'")
 
-                # Process text (punctuation, vocabulary, commands)
-                processed_text = self.text_processor.process(text)
+                # First, check for voice commands (wake word, mouse, etc.)
+                command_result = self.command_processor.process_command(text)
 
-                if processed_text:
-                    # Inject text
-                    print("⌨ Typing text...")
-                    text_injector = keyboard.Controller()
-                    text_injector.type(processed_text)
-                    print("✓ Done!\n")
+                # If command processor returns text, process it further
+                if command_result is not None:
+                    # Process text (punctuation, vocabulary, commands)
+                    processed_text = self.text_processor.process(command_result)
+
+                    if processed_text:
+                        # Inject text
+                        print("⌨ Typing text...")
+                        text_injector = keyboard.Controller()
+                        text_injector.type(processed_text)
+                        print("✓ Done!\n")
+                elif command_result is None and not self.command_processor.listening_for_command:
+                    # No command detected, process as normal text
+                    processed_text = self.text_processor.process(text)
+
+                    if processed_text:
+                        # Inject text
+                        print("⌨ Typing text...")
+                        text_injector = keyboard.Controller()
+                        text_injector.type(processed_text)
+                        print("✓ Done!\n")
             else:
                 print("⚠ Transcription was empty.")
 
@@ -609,7 +810,7 @@ class DictationEngine:
         self.p.terminate()
 
 
-# --- Module 5: System Tray Icon ---
+# --- Module 7: System Tray Icon ---
 
 
 class SystemTrayIcon:
