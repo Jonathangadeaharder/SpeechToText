@@ -835,14 +835,12 @@ class DictationEngine:
                 command_result = self.command_processor.process_command(text)
 
                 # In always_listening mode, only process if wake word was detected
-                wake_word_detected = self.command_processor.listening_for_command or (
-                    self.wake_word_always_listening
-                    and self.config.get("wake_word", "word", default="agent").lower() in text.lower()
-                )
+                wake_word_detected = self.command_processor.listening_for_command
 
                 # If in always_listening mode and no wake word, skip typing
                 if self.wake_word_always_listening and not wake_word_detected:
                     print("⏭️  No wake word detected, ignoring...")
+                    self.command_processor.listening_for_command = False
                 # If command processor returns text OR no command was detected
                 elif command_result is not None or not self.command_processor.listening_for_command:
                     text_to_process = command_result if command_result is not None else text
@@ -886,6 +884,12 @@ class DictationEngine:
 
     def toggle_continuous_mode(self):
         """Toggle continuous dictation mode."""
+        # Prevent toggling if always_listening is enabled
+        if self.wake_word_always_listening:
+            print("\n⚠️  Cannot toggle continuous mode when always_listening is enabled")
+            print("   Disable always_listening in config.yaml to use manual continuous mode toggle")
+            return
+        
         with self.continuous_mode_lock:
             self.continuous_mode = not self.continuous_mode
             continuous_mode = self.continuous_mode

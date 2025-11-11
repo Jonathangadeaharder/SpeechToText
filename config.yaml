@@ -139,7 +139,7 @@ wake_word:
   # Always listen for wake word (no hotkey needed)
   # When true, microphone is always on, listening for wake word
   # When false, you must hold push-to-talk hotkey first
-  always_listening: true
+  always_listening: false
 
   # Wake word to listen for (case-insensitive)
   # Default: "agent"
