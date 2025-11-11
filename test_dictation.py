@@ -225,30 +225,48 @@ class TestTextProcessing(unittest.TestCase):
 class TestAudioCallbackBehavior(unittest.TestCase):
     """Tests for audio callback behavior."""
 
-    def test_callback_continues_when_recording(self):
+    @patch('dictation.pyaudio')
+    @patch('dictation.IS_RECORDING', True)
+    @patch('dictation.AUDIO_FRAMES', [])
+    def test_callback_continues_when_recording(self, mock_pyaudio):
         """Test that callback returns paContinue when recording."""
-        is_recording = True
-        audio_frames = []
-        status = None  # Initialize for robustness
+        # Import the actual callback function
+        import dictation
+
+        # Mock pyaudio.paContinue constant
+        mock_pyaudio.paContinue = 0
 
         # Simulate callback
         in_data = b"\x00" * 1024
-        if is_recording:
-            audio_frames.append(in_data)
-            status = "paContinue"
+        result_data, status = dictation.audio_callback(in_data, None, None, None)
 
-        self.assertEqual(status, "paContinue")
-        self.assertEqual(len(audio_frames), 1)
+        # Should return paContinue (0) and data should be appended
+        self.assertEqual(status, 0)
+        self.assertEqual(result_data, in_data)
 
-    def test_callback_completes_when_not_recording(self):
-        """Test that callback returns paComplete when not recording."""
-        audio_frames = []
+    @patch('dictation.pyaudio')
+    @patch('dictation.IS_RECORDING', False)
+    @patch('dictation.AUDIO_FRAMES', [])
+    def test_callback_continues_when_not_recording(self, mock_pyaudio):
+        """Test that callback still returns paContinue even when not recording."""
+        # Import the actual callback function
+        import dictation
 
-        # Simulate callback - when not recording, status should be paComplete
-        status = "paComplete"
+        # Mock pyaudio.paContinue constant
+        mock_pyaudio.paContinue = 0
 
-        self.assertEqual(status, "paComplete")
-        self.assertEqual(len(audio_frames), 0)
+        # Track initial frames length
+        initial_frames = len(dictation.AUDIO_FRAMES)
+
+        # Simulate callback
+        in_data = b"\x00" * 1024
+        result_data, status = dictation.audio_callback(in_data, None, None, None)
+
+        # Should still return paContinue (0) but not append data
+        self.assertEqual(status, 0)
+        self.assertEqual(result_data, in_data)
+        # Frames should not have increased since not recording
+        self.assertEqual(len(dictation.AUDIO_FRAMES), initial_frames)
 
 
 class TestIntegrationScenarios(unittest.TestCase):

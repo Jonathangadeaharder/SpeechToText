@@ -7,7 +7,8 @@ max-line-length = 100
 # E501: line too long (handled by black)
 # W503: line break before binary operator (conflicts with black)
 # E402: module level import not at top of file (sometimes needed)
-ignore = E203,E501,W503,E402
+# F824: global name is unused - we declare globals for consistency even if read-only
+ignore = E203,E501,W503,E402,F824
 
 # Exclude directories
 exclude =
