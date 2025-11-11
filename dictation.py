@@ -919,6 +919,10 @@ class DictationEngine:
         # Check for toggle continuous mode
         if canonical_key in self.toggle_continuous_keys:
             self.currently_pressed.add(canonical_key)
+            # Debug: Show what's pressed
+            if self.config.get("advanced", "verbose", default=False):
+                print(f"Debug: Currently pressed: {self.currently_pressed}")
+                print(f"Debug: Expected: {self.toggle_continuous_keys}")
             if self.currently_pressed == self.toggle_continuous_keys:
                 self.toggle_continuous_mode()
 

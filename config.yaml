@@ -167,7 +167,7 @@ advanced:
   log_level: INFO
 
   # Enable verbose output
-  verbose: false
+  verbose: true
 
   # Maximum recording duration (seconds, 0 = unlimited)
   max_recording_duration: 60
