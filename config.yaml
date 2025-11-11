@@ -144,6 +144,10 @@ wake_word:
   # - Mouse Clicks: "AGENT CLICK LEFT" or "AGENT CLICK RIGHT"
   # - Type Text: "AGENT TYPE [your text here]"
   #   * Example: "AGENT TYPE Hello world" → types "Hello world"
+  # - Window Switching: "AGENT SWITCH WINDOW"
+  #   * Switches between open applications (Alt+Tab)
+  # - Tab Switching: "AGENT SWITCH TAB"
+  #   * Switches between tabs in current application (Ctrl+Tab)
   # - Commands persist until a different command is issued
 
   # Note: You can also just say the command after wake word is detected

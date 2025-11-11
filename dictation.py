@@ -275,6 +275,14 @@ class VoiceCommandProcessor:
         elif command.startswith("type"):
             return self._handle_type_command(command)
 
+        # Window switching commands
+        elif "switch window" in command:
+            return self._handle_switch_window_command()
+
+        # Tab switching commands
+        elif "switch tab" in command:
+            return self._handle_switch_tab_command()
+
         # Unknown command
         else:
             self.logger.warning(f"Unknown command: {command}")
@@ -364,6 +372,32 @@ class VoiceCommandProcessor:
                 return text_to_type
 
         print("⚠ No text specified after TYPE command")
+        return None
+
+    def _handle_switch_window_command(self) -> None:
+        """Handle SWITCH WINDOW command to switch between applications."""
+        # Use Alt+Tab on Windows/Linux
+        print("🪟 Switching window...")
+        with self.keyboard_controller.pressed(keyboard.Key.alt):
+            self.keyboard_controller.press(keyboard.Key.tab)
+            self.keyboard_controller.release(keyboard.Key.tab)
+
+        # Reset command tracking
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+    def _handle_switch_tab_command(self) -> None:
+        """Handle SWITCH TAB command to switch between browser/app tabs."""
+        # Use Ctrl+Tab (works in most tabbed applications)
+        print("📑 Switching tab...")
+        with self.keyboard_controller.pressed(keyboard.Key.ctrl):
+            self.keyboard_controller.press(keyboard.Key.tab)
+            self.keyboard_controller.release(keyboard.Key.tab)
+
+        # Reset command tracking
+        self.last_command = None
+        self.command_count = 0
         return None
 
 
