@@ -264,6 +264,8 @@ class VoiceCommandProcessor:
             # Extract command after wake word
             wake_word_index = text_lower.index(self.wake_word)
             command_text = text_lower[wake_word_index + len(self.wake_word) :].strip()
+            # Strip leading punctuation (commas, periods, etc.)
+            command_text = command_text.lstrip(",.!?;: ")
 
             if command_text:
                 return self._execute_command(command_text)

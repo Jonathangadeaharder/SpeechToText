@@ -11,10 +11,11 @@ hotkeys:
     - cmd  # Windows key on Windows/Linux, Command key on Mac
 
   # Toggle continuous dictation mode (press once to start, press again to stop)
+  # Changed from Ctrl+Shift+D to avoid terminal conflicts
   toggle_continuous:
     - ctrl
-    - shift
-    - d
+    - alt
+    - c
 
 # Audio Settings
 audio:
