@@ -193,19 +193,31 @@ wake_word:
   # - "TYPE [text]" - Type dictated text
   #   Example: "AGENT TYPE Hello world"
   #
-  # SCREEN SEGMENTATION (Phase 2 - Advanced):
-  # - "SHOW NUMBERS" - Display 5x5 numbered grid overlay (25 elements)
+  # SCREEN SEGMENTATION (Phase 2 & 3 - Advanced):
+  # Phase 2 - Grid Mode:
   # - "SHOW GRID" - Display 3x3 numbered grid overlay (9 elements)
+  #   Simple grid for precision clicking anywhere on screen
+  #
+  # Phase 3 - Element Detection Mode (Windows only):
+  # - "SHOW NUMBERS" - Auto-detect and number actual UI elements!
+  #   Detects buttons, links, checkboxes, text fields, etc.
+  #   Uses Windows UI Automation for smart element detection
+  #   Falls back to 5x5 grid on non-Windows or if detection fails
+  #
+  # Click Commands (both modes):
   # - "CLICK [number]" - Click on numbered element
-  #   Example: "AGENT SHOW GRID" then "AGENT CLICK 5"
+  #   Example: "AGENT SHOW NUMBERS" then "AGENT CLICK 5"
   # - "RIGHT CLICK [number]" - Right-click numbered element
   # - "DOUBLE CLICK [number]" - Double-click numbered element
   # - "MIDDLE CLICK [number]" - Middle-click numbered element
   # - "HIDE NUMBERS" / "HIDE GRID" - Close overlay
   #
+  # Requirements:
+  # - pyautogui (all platforms): pip install pyautogui
+  # - pywinauto (Windows only, Phase 3): pip install pywinauto
+  #
   # Note: Commands persist until different command is issued.
   # Consecutive same commands increase intensity (mouse, scroll).
-  # Requires pyautogui: pip install pyautogui
 
 # Advanced Settings
 advanced:

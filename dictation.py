@@ -44,6 +44,17 @@ except ImportError:
     PYAUTOGUI_AVAILABLE = False
     logging.warning("pyautogui not available. Screen segmentation features disabled.")
 
+# Platform-specific UI automation imports
+PYWINAUTO_AVAILABLE = False
+if platform.system() == "Windows":
+    try:
+        from pywinauto import Desktop
+        from pywinauto.findwindows import ElementNotFoundError
+
+        PYWINAUTO_AVAILABLE = True
+    except ImportError:
+        logging.warning("pywinauto not available. Advanced element detection disabled on Windows.")
+
 # --- Key Mapping for Left/Right Variants ---
 # Map physical keys to canonical keys (handles left/right variants)
 KEY_MAPPING = {
@@ -310,17 +321,149 @@ class NumberedOverlay:
         # Start mainloop in separate thread
         threading.Thread(target=self.root.mainloop, daemon=True).start()
 
-    def show_numbers(self, max_elements: int = 20):
+    def show_numbers(self, max_elements: int = 25):
         """
         Show numbered overlays on clickable screen elements.
-        For Phase 2, uses a simple grid-based approach.
+        Uses advanced UI detection on Windows, falls back to grid on other platforms.
         """
         if not PYAUTOGUI_AVAILABLE:
             print("⚠ PyAutoGUI not available. Install with: pip install pyautogui")
             return
 
-        # For now, show a finer grid for more precision
+        # Try advanced element detection on Windows
+        if platform.system() == "Windows" and PYWINAUTO_AVAILABLE:
+            try:
+                self._show_detected_elements(max_elements)
+                return
+            except Exception as e:
+                self.logger.warning(f"Element detection failed: {e}, falling back to grid")
+                print(f"⚠ Advanced detection failed, using grid mode")
+
+        # Fallback to grid mode
         self.show_grid(subdivisions=5)  # 5x5 grid = 25 elements
+
+    def _show_detected_elements(self, max_elements: int):
+        """Detect and show actual UI elements using Windows UI Automation."""
+        if not PYWINAUTO_AVAILABLE:
+            raise ImportError("pywinauto not available")
+
+        print("🔍 Detecting UI elements...")
+        self._cleanup()
+
+        # Get foreground window
+        desktop = Desktop(backend="uia")
+        try:
+            # Get active window
+            active_window = desktop.windows()[0]  # Foreground window
+        except (IndexError, ElementNotFoundError):
+            raise Exception("Could not find active window")
+
+        # Find all clickable elements
+        detected_elements = []
+        try:
+            # Get all descendants that are clickable
+            elements = active_window.descendants()
+
+            for elem in elements:
+                try:
+                    # Check if element is visible and clickable
+                    if not elem.is_visible():
+                        continue
+
+                    # Get element type - we want buttons, links, etc.
+                    control_type = getattr(elem.element_info, "control_type", "")
+
+                    # Filter for interactive elements
+                    if control_type in [
+                        "Button",
+                        "Hyperlink",
+                        "MenuItem",
+                        "CheckBox",
+                        "RadioButton",
+                        "ComboBox",
+                        "Edit",
+                        "ListItem",
+                        "TabItem",
+                    ]:
+                        # Get bounding rectangle
+                        rect = elem.rectangle()
+                        if rect.width() > 10 and rect.height() > 10:  # Filter tiny elements
+                            center_x = rect.left + rect.width() // 2
+                            center_y = rect.top + rect.height() // 2
+
+                            detected_elements.append(
+                                {
+                                    "x": center_x,
+                                    "y": center_y,
+                                    "width": rect.width(),
+                                    "height": rect.height(),
+                                    "name": elem.window_text(),
+                                    "type": control_type,
+                                }
+                            )
+
+                            if len(detected_elements) >= max_elements:
+                                break
+                except Exception:
+                    continue
+
+        except Exception as e:
+            self.logger.warning(f"Error detecting elements: {e}")
+
+        if not detected_elements:
+            raise Exception("No clickable elements found")
+
+        print(f"✓ Found {len(detected_elements)} clickable elements")
+
+        # Create overlay window
+        screen_width, screen_height = pyautogui.size()
+        self.root = tk.Tk()
+        self.root.attributes("-fullscreen", True)
+        self.root.attributes("-topmost", True)
+        self.root.attributes("-alpha", 0.8)
+        self.root.config(bg="black")
+
+        # Make window click-through on Windows
+        if platform.system() == "Windows":
+            self.root.attributes("-transparentcolor", "black")
+
+        self.canvas = tk.Canvas(
+            self.root, bg="black", highlightthickness=0, width=screen_width, height=screen_height
+        )
+        self.canvas.pack()
+
+        # Draw numbered labels over detected elements
+        for idx, elem in enumerate(detected_elements, start=1):
+            x, y = elem["x"], elem["y"]
+            width, height = elem["width"], elem["height"]
+
+            # Store element position
+            self.elements[idx] = (x, y, width, height)
+
+            # Draw bounding box
+            self.canvas.create_rectangle(
+                x - width // 2,
+                y - height // 2,
+                x + width // 2,
+                y + height // 2,
+                outline="lime",
+                width=2,
+            )
+
+            # Create label with background
+            self.canvas.create_oval(
+                x - 20, y - 20, x + 20, y + 20, fill="lime", outline="green", width=3
+            )
+            self.canvas.create_text(x, y, text=str(idx), font=("Arial", 18, "bold"), fill="black")
+
+        self.mode = "elements"
+        self.is_visible = True
+        print(f"✓ Element overlay shown with {len(self.elements)} elements")
+        print("  Say 'AGENT CLICK [number]' to click an element")
+        print("  Say 'AGENT HIDE NUMBERS' to close")
+
+        # Start mainloop in separate thread
+        threading.Thread(target=self.root.mainloop, daemon=True).start()
 
     def hide(self):
         """Hide the numbered overlay."""
