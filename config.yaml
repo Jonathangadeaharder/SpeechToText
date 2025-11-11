@@ -136,6 +136,11 @@ wake_word:
   # When enabled, say "AGENT" followed by a command
   enabled: true
 
+  # Always listen for wake word (no hotkey needed)
+  # When true, microphone is always on, listening for wake word
+  # When false, you must hold push-to-talk hotkey first
+  always_listening: true
+
   # Wake word to listen for (case-insensitive)
   # Default: "agent"
   word: "agent"
