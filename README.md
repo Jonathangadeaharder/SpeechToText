@@ -122,7 +122,7 @@ You can modify the following parameters in `dictation.py`:
 
 ### Hotkey Combination
 ```python
-# Change the hotkey (line 22)
+# Change the hotkey (line 25)
 HOTKEY_COMBINATION = {keyboard.Key.ctrl, keyboard.Key.cmd}
 
 # Examples:
@@ -132,7 +132,7 @@ HOTKEY_COMBINATION = {keyboard.Key.ctrl, keyboard.Key.cmd}
 
 ### Model Selection
 ```python
-# Change the Whisper model (line 46)
+# Change the Whisper model (line 54)
 WHISPER_MODEL = WhisperModel("small.en", device="cuda", compute_type="int8")
 
 # Available models (English-only):
@@ -144,7 +144,7 @@ WHISPER_MODEL = WhisperModel("small.en", device="cuda", compute_type="int8")
 
 ### Audio Settings
 ```python
-# Audio capture settings (lines 29-32)
+# Audio capture settings (lines 36-39)
 SAMPLE_RATE = 16000  # Whisper requires 16kHz
 CHANNELS = 1         # Mono audio
 CHUNK_SIZE = 1024    # Buffer size (lower = less latency)
@@ -164,7 +164,7 @@ CHUNK_SIZE = 1024    # Buffer size (lower = less latency)
 ### "GPU model failed to load"
 - This is normal if you don't have CUDA installed
 - The tool will automatically fall back to CPU mode
-- To force CPU mode, change `device="cuda"` to `device="cpu"` in line 46
+- To force CPU mode, change `device="cuda"` to `device="cpu"` in line 55
 
 ### Hotkey Not Working
 - **Windows**: Run as administrator if in a privileged application
@@ -213,9 +213,16 @@ Typical transcription times (5-second audio clip):
 ```
 SpeechToText/
 ├── dictation.py          # Main application
+├── test_dictation.py     # Unit tests
 ├── requirements.txt      # Python dependencies
-├── README.md            # This file
-└── .gitignore           # Git ignore rules
+├── pyproject.toml        # Project metadata/config
+├── .pylintrc             # Pylint configuration
+├── .flake8               # Flake8 configuration
+├── README.md             # This file
+├── .gitignore            # Git ignore rules
+└── models/               # Model files (e.g., quantized Whisper models)
+    ├── README.md         # Model cache documentation
+    └── <model files>     # Downloaded models stored here
 ```
 
 ## Future Enhancements

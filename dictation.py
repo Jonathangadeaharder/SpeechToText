@@ -34,6 +34,19 @@ from PIL import Image, ImageDraw
 from pynput import keyboard, mouse
 from pystray import Icon, Menu, MenuItem
 
+# --- Key Mapping for Left/Right Variants ---
+# Map physical keys to canonical keys (handles left/right variants)
+KEY_MAPPING = {
+    keyboard.Key.ctrl_l: keyboard.Key.ctrl,
+    keyboard.Key.ctrl_r: keyboard.Key.ctrl,
+    keyboard.Key.cmd_l: keyboard.Key.cmd,
+    keyboard.Key.cmd_r: keyboard.Key.cmd,
+    keyboard.Key.shift_l: keyboard.Key.shift,
+    keyboard.Key.shift_r: keyboard.Key.shift,
+    keyboard.Key.alt_l: keyboard.Key.alt,
+    keyboard.Key.alt_r: keyboard.Key.alt,
+}
+
 # --- Module 1: Configuration Manager ---
 
 
@@ -813,29 +826,35 @@ class DictationEngine:
 
     def on_press(self, key):
         """Handle key press events."""
+        # Normalize key (map left/right variants to canonical key)
+        canonical_key = KEY_MAPPING.get(key, key)
+
         # Check for push-to-talk
-        if key in self.push_to_talk_keys:
-            self.currently_pressed.add(key)
+        if canonical_key in self.push_to_talk_keys:
+            self.currently_pressed.add(canonical_key)
             if self.currently_pressed == self.push_to_talk_keys and not self.continuous_mode:
                 self.start_recording()
 
         # Check for toggle continuous mode
-        if key in self.toggle_continuous_keys:
-            self.currently_pressed.add(key)
+        if canonical_key in self.toggle_continuous_keys:
+            self.currently_pressed.add(canonical_key)
             if self.currently_pressed == self.toggle_continuous_keys:
                 self.toggle_continuous_mode()
 
     def on_release(self, key):
         """Handle key release events."""
-        if key in self.push_to_talk_keys:
+        # Normalize key (map left/right variants to canonical key)
+        canonical_key = KEY_MAPPING.get(key, key)
+
+        if canonical_key in self.push_to_talk_keys:
             if not self.continuous_mode and self.is_recording:
                 self.stop_recording()
-            if key in self.currently_pressed:
-                self.currently_pressed.remove(key)
+            if canonical_key in self.currently_pressed:
+                self.currently_pressed.remove(canonical_key)
 
-        if key in self.toggle_continuous_keys:
-            if key in self.currently_pressed:
-                self.currently_pressed.remove(key)
+        if canonical_key in self.toggle_continuous_keys:
+            if canonical_key in self.currently_pressed:
+                self.currently_pressed.remove(canonical_key)
 
     def cleanup(self):
         """Cleanup resources."""
