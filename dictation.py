@@ -29,6 +29,8 @@ AUDIO_FRAMES = []
 # Thread synchronization
 RECORDING_LOCK = threading.Lock()
 FRAMES_LOCK = threading.Lock()
+PRESSED_LOCK = threading.Lock()
+STREAM_LOCK = threading.Lock()
 
 # Audio settings (optimized for Whisper)
 SAMPLE_RATE = 16000
@@ -99,15 +101,16 @@ def start_recording():
         AUDIO_FRAMES = []
 
     try:
-        STREAM = p.open(
-            format=FORMAT,
-            channels=CHANNELS,
-            rate=SAMPLE_RATE,
-            input=True,
-            frames_per_buffer=CHUNK_SIZE,
-            stream_callback=audio_callback,
-        )
-        STREAM.start_stream()
+        with STREAM_LOCK:
+            STREAM = p.open(
+                format=FORMAT,
+                channels=CHANNELS,
+                rate=SAMPLE_RATE,
+                input=True,
+                frames_per_buffer=CHUNK_SIZE,
+                stream_callback=audio_callback,
+            )
+            STREAM.start_stream()
         print("\n🎤 Recording started...")
     except Exception as e:
         print(f"✗ Failed to start recording: {e}")
@@ -130,10 +133,11 @@ def stop_and_process_recording():
     print("⏹ Recording stopped. Processing...")
 
     # Wait for the stream to finish writing its last buffer
-    if STREAM and STREAM.is_active():
-        STREAM.stop_stream()
-    if STREAM:
-        STREAM.close()
+    with STREAM_LOCK:
+        if STREAM and STREAM.is_active():
+            STREAM.stop_stream()
+        if STREAM:
+            STREAM.close()
 
     # Copy frames to a new thread to avoid blocking the listener
     with FRAMES_LOCK:
@@ -198,9 +202,10 @@ def on_press(key):
     Starts recording when both hotkeys are pressed.
     """
     if key in HOTKEY_COMBINATION:
-        CURRENTLY_PRESSED.add(key)
-        if CURRENTLY_PRESSED == HOTKEY_COMBINATION:
-            start_recording()
+        with PRESSED_LOCK:
+            CURRENTLY_PRESSED.add(key)
+            if CURRENTLY_PRESSED == HOTKEY_COMBINATION:
+                start_recording()
 
 
 def on_release(key):
@@ -214,8 +219,10 @@ def on_release(key):
 
         if is_recording:
             stop_and_process_recording()
-        if key in CURRENTLY_PRESSED:
-            CURRENTLY_PRESSED.remove(key)
+        
+        with PRESSED_LOCK:
+            if key in CURRENTLY_PRESSED:
+                CURRENTLY_PRESSED.remove(key)
 
 
 # --- Main Application Logic ---
@@ -240,8 +247,9 @@ def main():
             listener.join()
     except KeyboardInterrupt:
         print("\n\nShutting down...")
-        if STREAM:
-            STREAM.close()
+        with STREAM_LOCK:
+            if STREAM:
+                STREAM.close()
         p.terminate()
         print("Goodbye!")
 

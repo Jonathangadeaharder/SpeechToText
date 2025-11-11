@@ -122,7 +122,7 @@ You can modify the following parameters in `dictation.py`:
 
 ### Hotkey Combination
 ```python
-# Change the hotkey (line 24)
+# Change the hotkey (line 25)
 HOTKEY_COMBINATION = {keyboard.Key.ctrl, keyboard.Key.cmd}
 
 # Examples:
@@ -132,7 +132,7 @@ HOTKEY_COMBINATION = {keyboard.Key.ctrl, keyboard.Key.cmd}
 
 ### Model Selection
 ```python
-# Change the Whisper model (line 44)
+# Change the Whisper model (line 50)
 WHISPER_MODEL = WhisperModel("small.en", device="cuda", compute_type="int8")
 
 # Available models (English-only):
@@ -144,7 +144,7 @@ WHISPER_MODEL = WhisperModel("small.en", device="cuda", compute_type="int8")
 
 ### Audio Settings
 ```python
-# Audio capture settings (lines 30-33)
+# Audio capture settings (lines 36-39)
 SAMPLE_RATE = 16000  # Whisper requires 16kHz
 CHANNELS = 1         # Mono audio
 CHUNK_SIZE = 1024    # Buffer size (lower = less latency)
@@ -164,7 +164,7 @@ CHUNK_SIZE = 1024    # Buffer size (lower = less latency)
 ### "GPU model failed to load"
 - This is normal if you don't have CUDA installed
 - The tool will automatically fall back to CPU mode
-- To force CPU mode, change `device="cuda"` to `device="cpu"` in line 46
+- To force CPU mode, change `device="cuda"` to `device="cpu"` in line 51
 
 ### Hotkey Not Working
 - **Windows**: Run as administrator if in a privileged application
