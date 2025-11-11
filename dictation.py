@@ -23,6 +23,14 @@ from faster_whisper import WhisperModel
 from pynput import keyboard
 
 # --- Configuration ---
+# Map physical keys to canonical keys (handles left/right variants)
+KEY_MAPPING = {
+    keyboard.Key.ctrl_l: keyboard.Key.ctrl,
+    keyboard.Key.ctrl_r: keyboard.Key.ctrl,
+    keyboard.Key.cmd_l: keyboard.Key.cmd,
+    keyboard.Key.cmd_r: keyboard.Key.cmd,
+}
+
 HOTKEY_COMBINATION = {
     keyboard.Key.ctrl,
     keyboard.Key.cmd,
@@ -214,9 +222,12 @@ def on_press(key):
     Callback for pynput listener when a key is pressed.
     Starts recording when both hotkeys are pressed.
     """
-    if key in HOTKEY_COMBINATION:
+    # Normalize key (map left/right variants to canonical key)
+    canonical_key = KEY_MAPPING.get(key, key)
+
+    if canonical_key in HOTKEY_COMBINATION:
         with PRESSED_LOCK:
-            CURRENTLY_PRESSED.add(key)
+            CURRENTLY_PRESSED.add(canonical_key)
             if CURRENTLY_PRESSED == HOTKEY_COMBINATION:
                 start_recording()
 
@@ -226,7 +237,10 @@ def on_release(key):
     Callback for pynput listener when a key is released.
     Stops recording and triggers transcription when either hotkey is released.
     """
-    if key in HOTKEY_COMBINATION:
+    # Normalize key (map left/right variants to canonical key)
+    canonical_key = KEY_MAPPING.get(key, key)
+
+    if canonical_key in HOTKEY_COMBINATION:
         with RECORDING_LOCK:
             is_recording = IS_RECORDING
 
@@ -234,8 +248,8 @@ def on_release(key):
             stop_and_process_recording()
 
         with PRESSED_LOCK:
-            if key in CURRENTLY_PRESSED:
-                CURRENTLY_PRESSED.remove(key)
+            if canonical_key in CURRENTLY_PRESSED:
+                CURRENTLY_PRESSED.remove(canonical_key)
 
 
 # --- Main Application Logic ---
