@@ -203,10 +203,11 @@ wake_word:
   #
   # SCREEN SEGMENTATION (Phase 2 & 3 - Advanced):
   # Phase 2 - Grid Mode:
-  # - "SHOW GRID" - Display 3x3 numbered grid overlay (9 elements)
-  #   Simple grid for precision clicking anywhere on screen
-  # - "REFINE GRID" - Increase grid subdivisions (3x3 → 5x5 → 7x7 → 9x9 → 11x11 max)
-  #   Say multiple times to keep increasing precision
+  # - "SHOW GRID" - Display 9x9 numbered grid overlay (81 cells)
+  #   Provides granular precision for clicking anywhere on screen
+  # - "REFINE GRID [number]" - Zoom into a specific cell with 3x3 subdivision
+  #   Example: "AGENT REFINE GRID 45" zooms into cell 45 with 9 smaller cells
+  #   Say "AGENT SHOW GRID" to reset back to full 9x9 grid
   #
   # Phase 3 - Element Detection Mode (Windows only):
   # - "SHOW NUMBERS" - Auto-detect and number actual UI elements!

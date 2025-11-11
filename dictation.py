@@ -271,7 +271,7 @@ class NumberedOverlay:
         """Queue a command to be executed on the GUI thread."""
         self.command_queue.put((cmd, args, kwargs))
 
-    def show_grid(self, subdivisions: int = 3):
+    def show_grid(self, subdivisions: int = 9):
         """Show a numbered grid overlay for precision clicking."""
         if not PYAUTOGUI_AVAILABLE:
             print("⚠ PyAutoGUI not available. Install with: pip install pyautogui")
@@ -279,6 +279,15 @@ class NumberedOverlay:
 
         # Queue the GUI operations
         self._queue_command(self._show_grid_impl, subdivisions)
+
+    def refine_grid_cell(self, cell_number: int):
+        """Zoom into a specific cell with a 3x3 subdivision."""
+        if not PYAUTOGUI_AVAILABLE:
+            print("⚠ PyAutoGUI not available. Install with: pip install pyautogui")
+            return
+
+        # Queue the GUI operations
+        self._queue_command(self._refine_grid_cell_impl, cell_number)
 
     def _show_grid_impl(self, subdivisions: int):
         """Implementation of show_grid - runs on GUI thread."""
@@ -362,7 +371,97 @@ class NumberedOverlay:
         self.is_visible = True
         print(f"✓ Grid overlay shown with {len(self.elements)} cells")
         print("  Say 'AGENT CLICK [number]' to click a cell")
+        print("  Say 'AGENT REFINE GRID [number]' to zoom into a cell")
         print("  Say 'AGENT HIDE NUMBERS' to close")
+
+    def _refine_grid_cell_impl(self, cell_number: int):
+        """Implementation of refine_grid_cell - runs on GUI thread."""
+        # Check if cell exists
+        if cell_number not in self.elements:
+            print(f"⚠ Cell {cell_number} not found in current grid")
+            return
+
+        # Get the bounds of the cell to zoom into
+        center_x, center_y, cell_width, cell_height = self.elements[cell_number]
+
+        # Calculate the bounds of the cell
+        x_start = center_x - cell_width // 2
+        y_start = center_y - cell_height // 2
+
+        print(f"🔍 Zooming into cell {cell_number}...")
+
+        # Get screen size for overlay
+        screen_width, screen_height = pyautogui.size()
+
+        # Clear current canvas
+        if self.canvas:
+            self.canvas.delete("all")
+        else:
+            self.canvas = tk.Canvas(
+                self.root,
+                bg="black",
+                highlightthickness=0,
+                width=screen_width,
+                height=screen_height,
+            )
+            self.canvas.pack()
+
+        # Create 3x3 grid within the cell bounds
+        subdivisions = 3
+        sub_cell_width = cell_width // subdivisions
+        sub_cell_height = cell_height // subdivisions
+
+        # Draw the zoomed 3x3 grid
+        self.elements.clear()
+        number = 1
+        for row in range(subdivisions):
+            for col in range(subdivisions):
+                x1 = x_start + col * sub_cell_width
+                y1 = y_start + row * sub_cell_height
+                x2 = x1 + sub_cell_width
+                y2 = y1 + sub_cell_height
+
+                # Draw grid cell border (use different color to show it's zoomed)
+                self.canvas.create_rectangle(
+                    x1, y1, x2, y2, outline="lime", width=3, fill="", stipple="gray12"
+                )
+
+                # Calculate center position for label
+                sub_center_x = x1 + sub_cell_width // 2
+                sub_center_y = y1 + sub_cell_height // 2
+
+                # Store element position
+                self.elements[number] = (
+                    sub_center_x,
+                    sub_center_y,
+                    sub_cell_width,
+                    sub_cell_height,
+                )
+
+                # Create label with background (use lime to indicate zoomed mode)
+                self.canvas.create_oval(
+                    sub_center_x - 25,
+                    sub_center_y - 25,
+                    sub_center_x + 25,
+                    sub_center_y + 25,
+                    fill="lime",
+                    outline="green",
+                    width=3,
+                )
+                self.canvas.create_text(
+                    sub_center_x,
+                    sub_center_y,
+                    text=str(number),
+                    font=("Arial", 24, "bold"),
+                    fill="black",
+                )
+
+                number += 1
+
+        self.mode = "grid_zoomed"
+        print(f"✓ Zoomed into cell {cell_number} with 3×3 grid (9 cells)")
+        print("  Say 'AGENT CLICK [number]' to click a cell")
+        print("  Say 'AGENT SHOW GRID' to reset to full grid")
 
     def show_numbers(self, max_elements: int = 25):
         """
@@ -724,7 +823,7 @@ class VoiceCommandProcessor:
         self.window_list = {}  # Maps number -> window handle/object
 
         # Grid state
-        self.current_grid_subdivisions = 3  # Track current grid level
+        self.current_grid_subdivisions = 9  # Track current grid level (9x9 default)
 
         # Load custom commands
         self.custom_commands_enabled = config.get("custom_commands", "enabled", default=False)
@@ -1006,7 +1105,7 @@ class VoiceCommandProcessor:
             return self._handle_show_grid_command()
 
         elif "refine grid" in command:
-            return self._handle_refine_grid_command()
+            return self._handle_refine_grid_command(command)
 
         # Hide overlay (robust matching for speech recognition errors)
         elif (
@@ -1404,26 +1503,27 @@ class VoiceCommandProcessor:
 
     def _handle_show_grid_command(self) -> None:
         """Handle SHOW GRID command to display grid overlay."""
-        print("🔢 Showing grid overlay...")
-        self.current_grid_subdivisions = 3  # Reset to default
+        print("🔢 Showing 9×9 grid overlay...")
+        self.current_grid_subdivisions = 9  # Default is now 9x9
         self.overlay.show_grid(subdivisions=self.current_grid_subdivisions)
         self.last_command = None
         self.command_count = 0
         return None
 
-    def _handle_refine_grid_command(self) -> None:
-        """Handle REFINE GRID command to increase grid subdivisions."""
-        # Increase subdivisions: 3 → 5 → 7 → 9 → 11 (max)
-        if self.current_grid_subdivisions < 11:
-            self.current_grid_subdivisions += 2
-            print(
-                f"🔍 Refining grid to {self.current_grid_subdivisions}x{self.current_grid_subdivisions}..."
-            )
-            self.overlay.show_grid(subdivisions=self.current_grid_subdivisions)
-        else:
-            print(
-                f"⚠ Grid already at maximum refinement ({self.current_grid_subdivisions}x{self.current_grid_subdivisions})"
-            )
+    def _handle_refine_grid_command(self, command: str) -> None:
+        """Handle REFINE GRID [number] command to zoom into a specific cell."""
+        # Extract number from command
+        import re
+
+        numbers = re.findall(r"\d+", command)
+        if not numbers:
+            print("⚠ No cell number specified. Use: REFINE GRID [number]")
+            print("  Example: AGENT REFINE GRID 5")
+            return None
+
+        cell_number = int(numbers[0])
+        print(f"🔍 Refining grid - zooming into cell {cell_number}...")
+        self.overlay.refine_grid_cell(cell_number)
         self.last_command = None
         self.command_count = 0
         return None
