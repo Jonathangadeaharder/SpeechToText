@@ -15,6 +15,7 @@ Architecture:
 import io
 import sys
 import threading
+import traceback
 import wave
 
 import pyaudio
@@ -22,7 +23,10 @@ from faster_whisper import WhisperModel
 from pynput import keyboard
 
 # --- Configuration ---
-HOTKEY_COMBINATION = {keyboard.Key.ctrl, keyboard.Key.cmd}  # .cmd is Win key on Windows/Linux, Cmd key on macOS
+HOTKEY_COMBINATION = {
+    keyboard.Key.ctrl,
+    keyboard.Key.cmd,
+}  # .cmd is Win key on Windows/Linux, Cmd key on macOS
 CURRENTLY_PRESSED = set()
 IS_RECORDING = False
 AUDIO_FRAMES = []
@@ -92,7 +96,7 @@ def start_recording():
     Called by the hotkey press event.
     Initializes audio stream and begins capturing microphone input.
     """
-    global IS_RECORDING, AUDIO_FRAMES, STREAM
+    global IS_RECORDING, STREAM
 
     with RECORDING_LOCK:
         if IS_RECORDING:
@@ -100,7 +104,7 @@ def start_recording():
         IS_RECORDING = True
 
     with FRAMES_LOCK:
-        AUDIO_FRAMES = []
+        AUDIO_FRAMES.clear()
 
     try:
         with STREAM_LOCK:
@@ -194,7 +198,8 @@ def transcribe_audio(frames):
             print("⚠ Transcription was empty.")
 
     except Exception as e:
-        print(f"✗ Error during transcription: {e}")
+        print(f"✗ Error during transcription: {type(e).__name__}: {e}")
+        traceback.print_exc()
 
 
 # --- Module 1: Hotkey Listener ---
