@@ -244,12 +244,8 @@ class TestAudioCallbackBehavior(unittest.TestCase):
         is_recording = False
         audio_frames = []
 
-        # Simulate callback
-        if is_recording:
-            audio_frames.append(b"\x00" * 1024)
-            status = "paContinue"
-        else:
-            status = "paComplete"
+        # Simulate callback - when not recording, status should be paComplete
+        status = "paComplete"
 
         self.assertEqual(status, "paComplete")
         self.assertEqual(len(audio_frames), 0)

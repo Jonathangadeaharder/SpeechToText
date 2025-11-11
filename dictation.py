@@ -219,7 +219,7 @@ def on_release(key):
 
         if is_recording:
             stop_and_process_recording()
-        
+
         with PRESSED_LOCK:
             if key in CURRENTLY_PRESSED:
                 CURRENTLY_PRESSED.remove(key)
