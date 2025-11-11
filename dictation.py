@@ -20,13 +20,14 @@ import io
 import logging
 import os
 import platform
+import queue
 import re
 import sys
 import threading
 import time
 import tkinter as tk
 import wave
-from typing import Dict, List, Optional, Set
+from typing import Callable, Dict, List, Optional, Set
 
 import numpy as np
 import pyaudio
@@ -239,13 +240,50 @@ class NumberedOverlay:
         self.grid_level = 0  # For hierarchical grid zooming
         self.grid_offset = (0, 0)  # Current grid offset for zooming
 
+        # Thread-safe command queue for GUI operations
+        self.command_queue = queue.Queue()
+
+        # Start GUI thread
+        self.gui_thread = threading.Thread(target=self._run_gui_thread, daemon=True)
+        self.gui_thread.start()
+
+    def _run_gui_thread(self):
+        """Run the tkinter GUI in a dedicated thread."""
+        # Create hidden root window
+        self.root = tk.Tk()
+        self.root.withdraw()  # Hide initially
+
+        # Process queue periodically
+        def process_queue():
+            try:
+                while True:
+                    cmd, args, kwargs = self.command_queue.get_nowait()
+                    cmd(*args, **kwargs)
+            except queue.Empty:
+                pass
+            finally:
+                # Check queue again after 100ms
+                self.root.after(100, process_queue)
+
+        process_queue()
+        self.root.mainloop()
+
+    def _queue_command(self, cmd: Callable, *args, **kwargs):
+        """Queue a command to be executed on the GUI thread."""
+        self.command_queue.put((cmd, args, kwargs))
+
     def show_grid(self, subdivisions: int = 3):
         """Show a numbered grid overlay for precision clicking."""
         if not PYAUTOGUI_AVAILABLE:
             print("⚠ PyAutoGUI not available. Install with: pip install pyautogui")
             return
 
-        self._cleanup()
+        # Queue the GUI operations
+        self._queue_command(self._show_grid_impl, subdivisions)
+
+    def _show_grid_impl(self, subdivisions: int):
+        """Implementation of show_grid - runs on GUI thread."""
+        self._cleanup_impl()
 
         # Get screen size
         screen_width, screen_height = pyautogui.size()
@@ -254,8 +292,8 @@ class NumberedOverlay:
         cell_width = screen_width // subdivisions
         cell_height = screen_height // subdivisions
 
-        # Create transparent overlay window
-        self.root = tk.Tk()
+        # Setup overlay window
+        self.root.deiconify()  # Show window
         self.root.attributes("-fullscreen", True)
         self.root.attributes("-topmost", True)
         self.root.attributes("-alpha", 0.7)
@@ -266,12 +304,21 @@ class NumberedOverlay:
         if platform.system() == "Windows":
             self.root.attributes("-transparentcolor", "black")
 
-        self.canvas = tk.Canvas(
-            self.root, bg="black", highlightthickness=0, width=screen_width, height=screen_height
-        )
-        self.canvas.pack()
+        # Create or clear canvas
+        if self.canvas:
+            self.canvas.delete("all")
+        else:
+            self.canvas = tk.Canvas(
+                self.root,
+                bg="black",
+                highlightthickness=0,
+                width=screen_width,
+                height=screen_height,
+            )
+            self.canvas.pack()
 
         # Draw grid and create numbered elements
+        self.elements.clear()
         number = 1
         for row in range(subdivisions):
             for col in range(subdivisions):
@@ -318,9 +365,6 @@ class NumberedOverlay:
         print("  Say 'AGENT CLICK [number]' to click a cell")
         print("  Say 'AGENT HIDE NUMBERS' to close")
 
-        # Start mainloop in separate thread
-        threading.Thread(target=self.root.mainloop, daemon=True).start()
-
     def show_numbers(self, max_elements: int = 25):
         """
         Show numbered overlays on clickable screen elements.
@@ -330,25 +374,30 @@ class NumberedOverlay:
             print("⚠ PyAutoGUI not available. Install with: pip install pyautogui")
             return
 
+        # Queue the command
+        self._queue_command(self._show_numbers_impl, max_elements)
+
+    def _show_numbers_impl(self, max_elements: int):
+        """Implementation of show_numbers - runs on GUI thread."""
         # Try advanced element detection on Windows
         if platform.system() == "Windows" and PYWINAUTO_AVAILABLE:
             try:
-                self._show_detected_elements(max_elements)
+                self._show_detected_elements_impl(max_elements)
                 return
             except Exception as e:
                 self.logger.warning(f"Element detection failed: {e}, falling back to grid")
-                print(f"⚠ Advanced detection failed, using grid mode")
+                print("⚠ Advanced detection failed, using grid mode")
 
         # Fallback to grid mode
-        self.show_grid(subdivisions=5)  # 5x5 grid = 25 elements
+        self._show_grid_impl(subdivisions=5)  # 5x5 grid = 25 elements
 
-    def _show_detected_elements(self, max_elements: int):
+    def _show_detected_elements_impl(self, max_elements: int):
         """Detect and show actual UI elements using Windows UI Automation."""
         if not PYWINAUTO_AVAILABLE:
             raise ImportError("pywinauto not available")
 
         print("🔍 Detecting UI elements...")
-        self._cleanup()
+        self._cleanup_impl()
 
         # Get foreground window
         desktop = Desktop(backend="uia")
@@ -415,9 +464,9 @@ class NumberedOverlay:
 
         print(f"✓ Found {len(detected_elements)} clickable elements")
 
-        # Create overlay window
+        # Setup overlay window
         screen_width, screen_height = pyautogui.size()
-        self.root = tk.Tk()
+        self.root.deiconify()  # Show window
         self.root.attributes("-fullscreen", True)
         self.root.attributes("-topmost", True)
         self.root.attributes("-alpha", 0.8)
@@ -427,12 +476,21 @@ class NumberedOverlay:
         if platform.system() == "Windows":
             self.root.attributes("-transparentcolor", "black")
 
-        self.canvas = tk.Canvas(
-            self.root, bg="black", highlightthickness=0, width=screen_width, height=screen_height
-        )
-        self.canvas.pack()
+        # Create or clear canvas
+        if self.canvas:
+            self.canvas.delete("all")
+        else:
+            self.canvas = tk.Canvas(
+                self.root,
+                bg="black",
+                highlightthickness=0,
+                width=screen_width,
+                height=screen_height,
+            )
+            self.canvas.pack()
 
         # Draw numbered labels over detected elements
+        self.elements.clear()
         for idx, elem in enumerate(detected_elements, start=1):
             x, y = elem["x"], elem["y"]
             width, height = elem["width"], elem["height"]
@@ -462,12 +520,13 @@ class NumberedOverlay:
         print("  Say 'AGENT CLICK [number]' to click an element")
         print("  Say 'AGENT HIDE NUMBERS' to close")
 
-        # Start mainloop in separate thread
-        threading.Thread(target=self.root.mainloop, daemon=True).start()
-
     def hide(self):
         """Hide the numbered overlay."""
-        self._cleanup()
+        self._queue_command(self._hide_impl)
+
+    def _hide_impl(self):
+        """Implementation of hide - runs on GUI thread."""
+        self._cleanup_impl()
         print("✓ Overlay hidden")
 
     def click_element(self, number: int, button: str = "left"):
@@ -495,17 +554,13 @@ class NumberedOverlay:
             pyautogui.doubleClick(x, y)
             print(f"✓ Double-clicked element {number} at ({x}, {y})")
 
-    def _cleanup(self):
-        """Clean up overlay resources."""
+    def _cleanup_impl(self):
+        """Clean up overlay resources - runs on GUI thread."""
+        if self.canvas:
+            self.canvas.delete("all")
         if self.root:
-            try:
-                self.root.quit()
-                self.root.destroy()
-            except Exception:
-                pass
-            self.root = None
+            self.root.withdraw()  # Hide instead of destroy
 
-        self.canvas = None
         self.elements = {}
         self.labels = []
         self.is_visible = False
