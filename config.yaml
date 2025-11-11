@@ -11,10 +11,11 @@ hotkeys:
     - cmd  # Windows key on Windows/Linux, Command key on Mac
 
   # Toggle continuous dictation mode (press once to start, press again to stop)
+  # Changed from Ctrl+Shift+D to avoid terminal conflicts
   toggle_continuous:
     - ctrl
-    - shift
-    - d
+    - alt
+    - c
 
 # Audio Settings
 audio:
@@ -134,6 +135,18 @@ wake_word:
   # Enable wake word detection for voice commands
   # When enabled, say "AGENT" followed by a command
   enabled: true
+
+  # Always listen for wake word (no hotkey needed)
+  # WARNING: Privacy and resource implications when enabled:
+  # - Microphone is continuously active and processing audio
+  # - Continuous CPU usage for audio processing
+  # - May reduce battery life significantly on laptops
+  # - Audio is processed locally (not sent to external servers)
+  # DEFAULT: false (users must opt-in for privacy/battery conservation)
+  # When true: Microphone always on, listening for wake word
+  # When false: Must hold push-to-talk hotkey first
+  # NOTE: Cannot toggle continuous mode hotkey when always_listening is enabled
+  always_listening: false
 
   # Wake word to listen for (case-insensitive)
   # Default: "agent"

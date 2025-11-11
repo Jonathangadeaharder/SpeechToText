@@ -264,6 +264,8 @@ class VoiceCommandProcessor:
             # Extract command after wake word
             wake_word_index = text_lower.index(self.wake_word)
             command_text = text_lower[wake_word_index + len(self.wake_word) :].strip()
+            # Strip leading punctuation (commas, periods, etc.)
+            command_text = command_text.lstrip(",.!?;: ")
 
             if command_text:
                 return self._execute_command(command_text)
@@ -563,7 +565,15 @@ class DictationEngine:
         # State management with thread safety
         self.is_recording = False
         self.recording_lock = threading.Lock()
-        self.continuous_mode = config.get("continuous_mode", "enabled", default=False)
+
+        # Wake word always listening mode
+        self.wake_word_always_listening = config.get("wake_word", "always_listening", default=False)
+
+        # If always listening for wake word, enable continuous mode by default
+        self.continuous_mode = (
+            config.get("continuous_mode", "enabled", default=False)
+            or self.wake_word_always_listening
+        )
         self.continuous_mode_lock = threading.Lock()
         self.audio_frames = []
         self.audio_frames_lock = threading.Lock()
@@ -824,8 +834,15 @@ class DictationEngine:
                 # First, check for voice commands (wake word, mouse, etc.)
                 command_result = self.command_processor.process_command(text)
 
+                # In always_listening mode, only process if wake word was detected
+                wake_word_detected = self.command_processor.listening_for_command
+
+                # If in always_listening mode and no wake word, skip typing
+                if self.wake_word_always_listening and not wake_word_detected:
+                    print("⏭️  No wake word detected, ignoring...")
+                    self.command_processor.listening_for_command = False
                 # If command processor returns text OR no command was detected
-                if command_result is not None or not self.command_processor.listening_for_command:
+                elif command_result is not None or not self.command_processor.listening_for_command:
                     text_to_process = command_result if command_result is not None else text
                     processed_text = self.text_processor.process(text_to_process)
 
@@ -867,6 +884,12 @@ class DictationEngine:
 
     def toggle_continuous_mode(self):
         """Toggle continuous dictation mode."""
+        # Prevent toggling if always_listening is enabled
+        if self.wake_word_always_listening:
+            print("\n⚠️  Cannot toggle continuous mode when always_listening is enabled")
+            print("   Disable always_listening in config.yaml to use manual continuous mode toggle")
+            return
+        
         with self.continuous_mode_lock:
             self.continuous_mode = not self.continuous_mode
             continuous_mode = self.continuous_mode
@@ -1011,14 +1034,30 @@ def main():
     )
     print(f"   System tray: {'✓' if config.get('system_tray', 'enabled') else '✗'}")
     print(f"   Audio feedback: {'✓' if config.get('audio', 'beep_on_start') else '✗'}")
+
+    # Check if always listening for wake word
+    always_listening = config.get("wake_word", "always_listening", default=False)
+    wake_word = config.get("wake_word", "word", default="agent").upper()
+    if always_listening:
+        print(f"   Wake word always listening: ✓ ('{wake_word}')")
+
     print("\n" + "=" * 70)
-    print("✓ Ready! Listening for hotkeys...")
+    if always_listening:
+        print(f"✓ Ready! Always listening for wake word '{wake_word}'...")
+        print(f"   Just say '{wake_word}' followed by your command (no hotkey needed)")
+    else:
+        print("✓ Ready! Listening for hotkeys...")
     print("=" * 70 + "\n")
 
     # Start system tray if enabled
     if config.get("system_tray", "enabled", default=True):
         tray_icon = SystemTrayIcon(engine)
         threading.Thread(target=tray_icon.run, daemon=True).start()
+
+    # Auto-start recording if always listening for wake word
+    if always_listening:
+        print("🎤 Starting always-on listening mode...")
+        engine.start_recording()
 
     # Start keyboard listener
     try:
