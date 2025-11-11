@@ -451,11 +451,11 @@ class TextProcessor:
         """Replace spoken punctuation with actual punctuation marks."""
         if not self.punctuation_map:
             return text
-        
+
         # Sort by length descending to avoid partial matches (e.g., "period" before "per")
         words = sorted(self.punctuation_map.keys(), key=len, reverse=True)
         pattern = r"\b(" + "|".join(map(re.escape, words)) + r")\b"
-        
+
         def repl(match):
             word = match.group(0)
             # Use original case-insensitive mapping
@@ -463,7 +463,7 @@ class TextProcessor:
                 if word.lower() == k.lower():
                     return self.punctuation_map[k]
             return word
-        
+
         text = re.sub(pattern, repl, text, flags=re.IGNORECASE)
 
         # Clean up extra spaces around punctuation
@@ -491,7 +491,7 @@ class TextProcessor:
             # Clear the current line
             controller = keyboard.Controller()
             # Use Cmd on macOS, Ctrl on Windows/Linux
-            modifier_key = keyboard.Key.cmd if platform.system() == 'Darwin' else keyboard.Key.ctrl
+            modifier_key = keyboard.Key.cmd if platform.system() == "Darwin" else keyboard.Key.ctrl
             controller.press(modifier_key)
             controller.press(keyboard.Key.backspace)
             controller.release(keyboard.Key.backspace)
@@ -571,7 +571,7 @@ class DictationEngine:
         self.stream = None
         self.running = threading.Event()
         self.running.set()
-        
+
         # Failure tracking for auto-restart
         self.consecutive_failures = 0
         self.max_consecutive_failures = 3
@@ -673,10 +673,10 @@ class DictationEngine:
                 is_recording = self.is_recording
             with self.continuous_mode_lock:
                 continuous_mode = self.continuous_mode
-            
+
             if not is_recording or not continuous_mode:
                 break
-                
+
             if self.last_audio_chunk:
                 # Check if current chunk contains speech
                 self.vad.is_speech(self.last_audio_chunk)
@@ -710,7 +710,7 @@ class DictationEngine:
             if self.is_recording:
                 return
             self.is_recording = True
-        
+
         with self.audio_frames_lock:
             self.audio_frames = []
         self.last_audio_chunk = None
@@ -765,7 +765,7 @@ class DictationEngine:
             if not self.is_recording:
                 return
             self.is_recording = False
-        
+
         print("⏹ Recording stopped. Processing...")
 
         # Play stop beep
@@ -836,7 +836,7 @@ class DictationEngine:
                         print("✓ Done!\n")
             else:
                 print("⚠ Transcription was empty.")
-            
+
             successful = True
 
         except Exception as e:
@@ -857,7 +857,7 @@ class DictationEngine:
                         with self.continuous_mode_lock:
                             self.continuous_mode = False
                         return
-                
+
                 time.sleep(0.3)  # Brief pause before restarting
                 with self.continuous_mode_lock:
                     continuous_mode = self.continuous_mode
@@ -870,7 +870,7 @@ class DictationEngine:
         with self.continuous_mode_lock:
             self.continuous_mode = not self.continuous_mode
             continuous_mode = self.continuous_mode
-        
+
         if continuous_mode:
             silence_sec = self.silence_duration
             print("\n🔄 Continuous mode ENABLED")
