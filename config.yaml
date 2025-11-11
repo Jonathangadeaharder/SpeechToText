@@ -1,0 +1,150 @@
+# Configuration file for Speech-to-Text Dictation Tool
+# This file allows you to customize the behavior of the dictation tool
+
+# Hotkey Configuration
+hotkeys:
+  # Primary push-to-talk hotkey (hold to record, release to transcribe)
+  # Available keys: ctrl, cmd (Windows key), alt, shift, space, and any letter key
+  # Format: List of keys that must be pressed together
+  push_to_talk:
+    - ctrl
+    - cmd  # Windows key on Windows/Linux, Command key on Mac
+
+  # Toggle continuous dictation mode (press once to start, press again to stop)
+  toggle_continuous:
+    - ctrl
+    - shift
+    - d
+
+# Audio Settings
+audio:
+  # Sample rate (Hz) - Whisper requires 16000
+  sample_rate: 16000
+
+  # Number of channels (1 = mono, 2 = stereo)
+  channels: 1
+
+  # Audio chunk size (lower = less latency, higher = more stable)
+  chunk_size: 1024
+
+  # Enable audio feedback beeps
+  beep_on_start: true
+  beep_on_stop: true
+
+  # Beep frequency and duration (Hz, milliseconds)
+  start_beep_frequency: 800
+  start_beep_duration: 100
+  stop_beep_frequency: 600
+  stop_beep_duration: 100
+
+# Whisper Model Configuration
+model:
+  # Model size: tiny.en, base.en, small.en, medium.en, large-v2
+  # Larger models are more accurate but slower and use more resources
+  name: small.en
+
+  # Device: cuda (GPU) or cpu
+  # Set to "auto" to automatically detect and use GPU if available
+  device: auto
+
+  # Compute type: int8, int8_float16, float16, float32
+  # int8 uses less VRAM but may be slightly less accurate
+  compute_type: int8
+
+  # Beam size for decoding (higher = more accurate but slower)
+  beam_size: 5
+
+  # Language (set to null for auto-detection)
+  language: en
+
+# Text Processing
+text_processing:
+  # Enable automatic punctuation command replacement
+  # When enabled, spoken words like "period" become "."
+  punctuation_commands: true
+
+  # Punctuation command mappings
+  punctuation_map:
+    period: "."
+    comma: ","
+    question mark: "?"
+    exclamation point: "!"
+    exclamation mark: "!"
+    colon: ":"
+    semicolon: ";"
+    new line: "\n"
+    new paragraph: "\n\n"
+    dash: "-"
+    hyphen: "-"
+    quote: "\""
+    open quote: "\""
+    close quote: "\""
+    apostrophe: "'"
+    open parenthesis: "("
+    close parenthesis: ")"
+    open bracket: "["
+    close bracket: "]"
+
+  # Custom vocabulary replacements
+  # Replace transcribed words/phrases with custom text
+  custom_vocabulary:
+    # Example: "dictation tool" will be replaced with "DictationTool"
+    # "dictation tool": "DictationTool"
+    # "my email": "user@example.com"
+
+  # Command words that trigger special actions
+  # Format: "command word": "action"
+  # Available actions: clear_line, undo_last, copy_text, paste_text
+  command_words:
+    "delete that": "undo_last"
+    "scratch that": "undo_last"
+    "clear line": "clear_line"
+
+# Continuous Dictation Mode
+continuous_mode:
+  # Enable continuous dictation mode by default
+  enabled: false
+
+  # Silence detection threshold (seconds)
+  # After this many seconds of silence, automatically transcribe
+  silence_threshold: 2.0
+
+  # Minimum audio length to transcribe (seconds)
+  minimum_audio_length: 0.5
+
+# System Tray Icon
+system_tray:
+  # Enable system tray icon
+  enabled: true
+
+  # Show notifications
+  show_notifications: true
+
+  # Notification duration (seconds)
+  notification_duration: 2
+
+# Wake Word Detection
+wake_word:
+  # Enable wake word detection
+  # When enabled, say the wake word to start recording
+  enabled: false
+
+  # Wake word to listen for
+  word: "hey computer"
+
+  # Sensitivity (0.0 to 1.0, higher = more sensitive but more false positives)
+  sensitivity: 0.5
+
+# Advanced Settings
+advanced:
+  # Log level: DEBUG, INFO, WARNING, ERROR
+  log_level: INFO
+
+  # Enable verbose output
+  verbose: false
+
+  # Maximum recording duration (seconds, 0 = unlimited)
+  max_recording_duration: 60
+
+  # Number of worker threads for transcription
+  transcription_threads: 1
