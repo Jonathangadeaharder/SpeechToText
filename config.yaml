@@ -137,9 +137,16 @@ wake_word:
   enabled: true
 
   # Always listen for wake word (no hotkey needed)
-  # When true, microphone is always on, listening for wake word
-  # When false, you must hold push-to-talk hotkey first
-  always_listening: true
+  # WARNING: Privacy and resource implications when enabled:
+  # - Microphone is continuously active and processing audio
+  # - Continuous CPU usage for audio processing
+  # - May reduce battery life significantly on laptops
+  # - Audio is processed locally (not sent to external servers)
+  # DEFAULT: false (users must opt-in for privacy/battery conservation)
+  # When true: Microphone always on, listening for wake word
+  # When false: Must hold push-to-talk hotkey first
+  # NOTE: Cannot toggle continuous mode hotkey when always_listening is enabled
+  always_listening: false
 
   # Wake word to listen for (case-insensitive)
   # Default: "agent"
