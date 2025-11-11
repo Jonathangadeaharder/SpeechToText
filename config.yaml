@@ -234,3 +234,92 @@ advanced:
 
   # Number of worker threads for transcription
   transcription_threads: 1
+
+# Custom Voice Commands
+# Define your own voice commands that can type text, execute files, or press key combinations
+custom_commands:
+  # Enable custom commands feature
+  enabled: true
+
+  # Define your custom commands below
+  # Each command must have a 'trigger' phrase and an 'action' with type and parameters
+  commands:
+    # Example 1: Type text when you say a command
+    - trigger: "insert email"
+      action:
+        type: "type_text"
+        text: "your.email@example.com"
+
+    - trigger: "insert signature"
+      action:
+        type: "type_text"
+        text: "Best regards,\nYour Name\nYour Title"
+
+    # Example 2: Execute a file or program
+    - trigger: "open calculator"
+      action:
+        type: "execute_file"
+        path: "calc.exe"  # Windows calculator
+
+    - trigger: "open notepad"
+      action:
+        type: "execute_file"
+        path: "notepad.exe"
+
+    - trigger: "run my script"
+      action:
+        type: "execute_file"
+        path: "C:\\path\\to\\your\\script.bat"
+
+    # Example 3: Press key combinations
+    - trigger: "save file"
+      action:
+        type: "key_combination"
+        keys: ["ctrl", "s"]
+
+    - trigger: "copy that"
+      action:
+        type: "key_combination"
+        keys: ["ctrl", "c"]
+
+    - trigger: "paste that"
+      action:
+        type: "key_combination"
+        keys: ["ctrl", "v"]
+
+    - trigger: "new tab"
+      action:
+        type: "key_combination"
+        keys: ["ctrl", "t"]
+
+    - trigger: "close tab"
+      action:
+        type: "key_combination"
+        keys: ["ctrl", "w"]
+
+    - trigger: "undo that"
+      action:
+        type: "key_combination"
+        keys: ["ctrl", "z"]
+
+    - trigger: "find text"
+      action:
+        type: "key_combination"
+        keys: ["ctrl", "f"]
+
+    - trigger: "switch app"
+      action:
+        type: "key_combination"
+        keys: ["alt", "tab"]
+
+  # Notes:
+  # - trigger: The phrase you say (case-insensitive, after wake word "AGENT")
+  # - action.type: Must be one of: "type_text", "execute_file", "key_combination"
+  # - action.text: The text to type (supports \n for newlines, \t for tabs)
+  # - action.path: Full path to file/program to execute
+  # - action.keys: List of keys to press together
+  #   Available keys: ctrl, alt, shift, cmd, tab, enter, space, esc, backspace,
+  #                   delete, home, end, pageup, pagedown, up, down, left, right,
+  #                   f1-f12, a-z, 0-9
+  #
+  # Custom commands are checked BEFORE built-in commands, so you can override defaults

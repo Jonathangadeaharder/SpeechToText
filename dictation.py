@@ -599,6 +599,19 @@ class VoiceCommandProcessor:
         # Window list for numbered window switching
         self.window_list = {}  # Maps number -> window handle/object
 
+        # Load custom commands
+        self.custom_commands_enabled = config.get("custom_commands", "enabled", default=False)
+        self.custom_commands = []
+        if self.custom_commands_enabled:
+            commands_list = config.get("custom_commands", "commands", default=[])
+            if commands_list:
+                for cmd in commands_list:
+                    if isinstance(cmd, dict) and "trigger" in cmd and "action" in cmd:
+                        self.custom_commands.append(cmd)
+                self.logger.info(f"Loaded {len(self.custom_commands)} custom commands")
+            else:
+                self.logger.warning("Custom commands enabled but no commands defined")
+
     def _get_screen_size(self):
         """Get screen dimensions using tkinter."""
         try:
@@ -613,6 +626,146 @@ class VoiceCommandProcessor:
         except Exception as e:
             self.logger.warning(f"Could not get screen size: {e}, using defaults")
             return 1920, 1080  # Default fallback
+
+    def _check_custom_commands(self, command: str) -> Optional[str]:
+        """Check if command matches any custom commands and execute."""
+        command_lower = command.lower()
+
+        for cmd_def in self.custom_commands:
+            trigger = cmd_def.get("trigger", "").lower()
+            if not trigger:
+                continue
+
+            # Check if command contains the trigger
+            if trigger in command_lower:
+                action = cmd_def.get("action", {})
+                action_type = action.get("type", "")
+
+                try:
+                    if action_type == "type_text":
+                        # Type text action
+                        text = action.get("text", "")
+                        if text:
+                            print("💬 Custom command: Typing text...")
+                            # Process escape sequences
+                            text = text.replace("\\n", "\n").replace("\\t", "\t")
+                            return text
+                        else:
+                            self.logger.warning(f"Custom command '{trigger}' has no text defined")
+
+                    elif action_type == "execute_file":
+                        # Execute file action
+                        path = action.get("path", "")
+                        if path:
+                            print(f"🚀 Custom command: Executing {path}...")
+                            import subprocess
+
+                            subprocess.Popen(path, shell=True)
+                            print(f"✓ Executed: {path}")
+                        else:
+                            self.logger.warning(f"Custom command '{trigger}' has no path defined")
+                        return None
+
+                    elif action_type == "key_combination":
+                        # Key combination action
+                        keys = action.get("keys", [])
+                        if keys:
+                            print(f"⌨️ Custom command: Pressing {' + '.join(keys)}...")
+                            self._press_key_combination(keys)
+                            print(f"✓ Pressed: {' + '.join(keys)}")
+                        else:
+                            self.logger.warning(f"Custom command '{trigger}' has no keys defined")
+                        return None
+
+                    else:
+                        self.logger.warning(
+                            f"Custom command '{trigger}' has unknown action type: {action_type}"
+                        )
+
+                except Exception as e:
+                    self.logger.error(f"Error executing custom command '{trigger}': {e}")
+                    print(f"⚠ Error executing custom command: {e}")
+
+                # Command matched, don't continue checking
+                return None
+
+        # No custom command matched
+        return None
+
+    def _press_key_combination(self, keys: List[str]):
+        """Press a combination of keys."""
+        # Map string keys to pynput keys
+        key_map = {
+            "ctrl": keyboard.Key.ctrl,
+            "alt": keyboard.Key.alt,
+            "shift": keyboard.Key.shift,
+            "cmd": keyboard.Key.cmd,
+            "tab": keyboard.Key.tab,
+            "enter": keyboard.Key.enter,
+            "space": keyboard.Key.space,
+            "esc": keyboard.Key.esc,
+            "backspace": keyboard.Key.backspace,
+            "delete": keyboard.Key.delete,
+            "home": keyboard.Key.home,
+            "end": keyboard.Key.end,
+            "pageup": keyboard.Key.page_up,
+            "pagedown": keyboard.Key.page_down,
+            "up": keyboard.Key.up,
+            "down": keyboard.Key.down,
+            "left": keyboard.Key.left,
+            "right": keyboard.Key.right,
+            "f1": keyboard.Key.f1,
+            "f2": keyboard.Key.f2,
+            "f3": keyboard.Key.f3,
+            "f4": keyboard.Key.f4,
+            "f5": keyboard.Key.f5,
+            "f6": keyboard.Key.f6,
+            "f7": keyboard.Key.f7,
+            "f8": keyboard.Key.f8,
+            "f9": keyboard.Key.f9,
+            "f10": keyboard.Key.f10,
+            "f11": keyboard.Key.f11,
+            "f12": keyboard.Key.f12,
+        }
+
+        # Convert string keys to pynput keys
+        pynput_keys = []
+        for key_str in keys:
+            key_str_lower = key_str.lower()
+            if key_str_lower in key_map:
+                pynput_keys.append(key_map[key_str_lower])
+            elif len(key_str) == 1:
+                # Single character key
+                pynput_keys.append(key_str_lower)
+            else:
+                self.logger.warning(f"Unknown key: {key_str}")
+                continue
+
+        # Press all keys except the last one
+        pressed_keys = []
+        try:
+            for key in pynput_keys[:-1]:
+                self.keyboard_controller.press(key)
+                pressed_keys.append(key)
+
+            # Press and release the last key
+            if pynput_keys:
+                last_key = pynput_keys[-1]
+                self.keyboard_controller.press(last_key)
+                self.keyboard_controller.release(last_key)
+
+            # Release all pressed keys in reverse order
+            for key in reversed(pressed_keys):
+                self.keyboard_controller.release(key)
+
+        except Exception as e:
+            # Make sure to release any pressed keys on error
+            for key in reversed(pressed_keys):
+                try:
+                    self.keyboard_controller.release(key)
+                except Exception:
+                    pass
+            raise e
 
     def process_command(self, text: str) -> Optional[str]:
         """
@@ -655,6 +808,12 @@ class VoiceCommandProcessor:
     def _execute_command(self, command: str) -> Optional[str]:
         """Execute a voice command."""
         command = command.strip()
+
+        # Check custom commands first (before built-in commands)
+        if self.custom_commands_enabled:
+            custom_result = self._check_custom_commands(command)
+            if custom_result is not None:
+                return custom_result
 
         # Mouse movement commands
         if command.startswith("move"):
