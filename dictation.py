@@ -98,12 +98,11 @@ def start_recording():
     """
     global IS_RECORDING, STREAM
 
-    with RECORDING_LOCK:
-        if IS_RECORDING:
-            return  # Already recording
-        IS_RECORDING = True
-
     with FRAMES_LOCK:
+        with RECORDING_LOCK:
+            if IS_RECORDING:
+                return  # Already recording
+            IS_RECORDING = True
         AUDIO_FRAMES.clear()
 
     try:
@@ -120,6 +119,13 @@ def start_recording():
         print("\n🎤 Recording started...")
     except Exception as e:
         print(f"✗ Failed to start recording: {e}")
+        with STREAM_LOCK:
+            if STREAM:
+                try:
+                    STREAM.close()
+                except Exception:
+                    pass
+                STREAM = None
         with RECORDING_LOCK:
             IS_RECORDING = False
 
@@ -256,6 +262,8 @@ def main():
         print("\n\nShutting down...")
         with STREAM_LOCK:
             if STREAM:
+                if STREAM.is_active():
+                    STREAM.stop_stream()
                 STREAM.close()
         p.terminate()
         print("Goodbye!")
