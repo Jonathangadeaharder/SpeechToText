@@ -35,8 +35,7 @@ module = [
     "pyaudio",
     "pynput",
     "pynput.keyboard",
-    "faster_whisper",
-    "wave"
+    "faster_whisper"
 ]
 ignore_missing_imports = true
 

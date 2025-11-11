@@ -123,8 +123,8 @@ def start_recording():
             if STREAM:
                 try:
                     STREAM.close()
-                except Exception:
-                    pass
+                except Exception as close_exc:
+                    print(f"✗ Failed to close stream: {close_exc}")
                 STREAM = None
         with RECORDING_LOCK:
             IS_RECORDING = False
@@ -135,7 +135,7 @@ def stop_and_process_recording():
     Called by the hotkey release event.
     Stops audio capture and triggers transcription in a worker thread.
     """
-    global IS_RECORDING
+    global IS_RECORDING, STREAM
 
     with RECORDING_LOCK:
         if not IS_RECORDING:
