@@ -1008,7 +1008,19 @@ class VoiceCommandProcessor:
         elif "refine grid" in command:
             return self._handle_refine_grid_command()
 
-        elif "hide numbers" in command or "hide grid" in command or "close overlay" in command:
+        # Hide overlay (robust matching for speech recognition errors)
+        elif (
+            "hide numbers" in command
+            or "height numbers" in command  # Common misrecognition
+            or "hide grid" in command
+            or "height grid" in command  # Common misrecognition
+            or "close overlay" in command
+            or "close numbers" in command
+            or "remove overlay" in command
+            or "clear overlay" in command
+            or "hide overlay" in command
+            or "height overlay" in command  # Common misrecognition
+        ):
             return self._handle_hide_overlay_command()
 
         # Window management commands
