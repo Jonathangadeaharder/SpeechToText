@@ -22,6 +22,7 @@ import os
 import re
 import sys
 import threading
+import time
 import wave
 from typing import Dict, List, Optional, Set
 
@@ -254,7 +255,58 @@ class TextProcessor:
             logging.info("Cleared line")
 
 
-# --- Module 4: Dictation Engine ---
+# --- Module 4: Voice Activity Detector ---
+
+
+class VoiceActivityDetector:
+    """Detect silence/speech using audio energy analysis."""
+
+    def __init__(self, sample_rate: int, chunk_size: int, silence_threshold: float = 0.01):
+        self.sample_rate = sample_rate
+        self.chunk_size = chunk_size
+        self.silence_threshold = silence_threshold
+        self.last_speech_time = time.time()
+        self.speech_detected = False
+
+    def is_speech(self, audio_data: bytes) -> bool:
+        """
+        Detect if audio chunk contains speech using RMS energy.
+
+        Args:
+            audio_data: Raw audio bytes (16-bit PCM)
+
+        Returns:
+            True if speech detected, False if silence
+        """
+        # Convert bytes to numpy array
+        audio_array = np.frombuffer(audio_data, dtype=np.int16)
+
+        # Calculate RMS (Root Mean Square) energy
+        rms = np.sqrt(np.mean(audio_array**2))
+
+        # Normalize to 0-1 range (16-bit audio has max value of 32767)
+        normalized_rms = rms / 32767.0
+
+        # Detect speech if energy exceeds threshold
+        is_speech_detected = normalized_rms > self.silence_threshold
+
+        if is_speech_detected:
+            self.last_speech_time = time.time()
+            self.speech_detected = True
+
+        return is_speech_detected
+
+    def get_silence_duration(self) -> float:
+        """Get duration of silence in seconds since last speech."""
+        return time.time() - self.last_speech_time
+
+    def reset(self):
+        """Reset the detector state."""
+        self.last_speech_time = time.time()
+        self.speech_detected = False
+
+
+# --- Module 5: Dictation Engine ---
 
 
 class DictationEngine:
@@ -282,6 +334,14 @@ class DictationEngine:
         self.channels = config.get("audio", "channels", default=1)
         self.chunk_size = config.get("audio", "chunk_size", default=1024)
         self.format = pyaudio.paInt16
+
+        # VAD (Voice Activity Detection) for silence detection
+        silence_threshold_config = config.get("continuous_mode", "silence_threshold", default=2.0)
+        self.silence_threshold = silence_threshold_config
+        self.min_audio_length = config.get("continuous_mode", "minimum_audio_length", default=0.5)
+        self.vad = VoiceActivityDetector(self.sample_rate, self.chunk_size, silence_threshold=0.02)
+        self.vad_monitor_thread = None
+        self.last_audio_chunk = None
 
         # Hotkeys
         self.push_to_talk_keys = self._parse_hotkeys(
@@ -339,8 +399,41 @@ class DictationEngine:
         """PyAudio callback for recording audio."""
         if self.is_recording:
             self.audio_frames.append(in_data)
+            self.last_audio_chunk = in_data  # Store for VAD monitoring
             return (in_data, pyaudio.paContinue)
         return (in_data, pyaudio.paComplete)
+
+    def _monitor_silence(self):
+        """
+        Monitor audio for silence in continuous mode.
+        Automatically stops recording after silence threshold is exceeded.
+        """
+        while self.is_recording and self.continuous_mode:
+            if self.last_audio_chunk:
+                # Check if current chunk contains speech
+                self.vad.is_speech(self.last_audio_chunk)
+
+                # Get silence duration
+                silence_duration = self.vad.get_silence_duration()
+
+                # Calculate total recording duration
+                num_frames = len(self.audio_frames)
+                recording_duration = (num_frames * self.chunk_size) / self.sample_rate
+
+                # Check if we should auto-stop
+                if (
+                    self.vad.speech_detected  # We detected speech at some point
+                    and silence_duration >= self.silence_threshold
+                    and recording_duration >= self.min_audio_length
+                ):
+                    self.logger.info(
+                        f"Silence detected for {silence_duration:.1f}s, auto-stopping..."
+                    )
+                    self.stop_recording()
+                    break
+
+            # Check every 100ms
+            time.sleep(0.1)
 
     def start_recording(self):
         """Start recording audio."""
@@ -349,6 +442,10 @@ class DictationEngine:
 
         self.is_recording = True
         self.audio_frames = []
+        self.last_audio_chunk = None
+
+        # Reset VAD detector
+        self.vad.reset()
 
         # Play start beep
         if self.config.get("audio", "beep_on_start", default=True):
@@ -368,7 +465,16 @@ class DictationEngine:
                 stream_callback=self.audio_callback,
             )
             self.stream.start_stream()
-            print("\n🎤 Recording started...")
+
+            # Start silence monitoring thread in continuous mode
+            if self.continuous_mode:
+                self.vad_monitor_thread = threading.Thread(
+                    target=self._monitor_silence, daemon=True
+                )
+                self.vad_monitor_thread.start()
+                print("\n🎤 Recording started... (will auto-stop after silence)")
+            else:
+                print("\n🎤 Recording started...")
         except Exception as e:
             self.logger.error(f"Failed to start recording: {e}")
             self.is_recording = False
@@ -448,12 +554,21 @@ class DictationEngine:
             self.logger.error(f"Transcription error: {e}")
             print(f"✗ Error during transcription: {e}")
 
+        finally:
+            # Auto-restart recording in continuous mode
+            if self.continuous_mode and self.running:
+                time.sleep(0.3)  # Brief pause before restarting
+                if self.continuous_mode:  # Check again in case mode was toggled
+                    self.logger.info("Auto-restarting recording in continuous mode...")
+                    self.start_recording()
+
     def toggle_continuous_mode(self):
         """Toggle continuous dictation mode."""
         self.continuous_mode = not self.continuous_mode
         if self.continuous_mode:
+            silence_sec = self.silence_threshold
             print("\n🔄 Continuous mode ENABLED")
-            print("   (Speak naturally, will auto-transcribe after silence)")
+            print(f"   (Speak naturally, auto-transcribes after {silence_sec}s silence)")
             self.start_recording()
         else:
             print("\n🔄 Continuous mode DISABLED")

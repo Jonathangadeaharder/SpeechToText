@@ -100,16 +100,20 @@ text_processing:
     "scratch that": "undo_last"
     "clear line": "clear_line"
 
-# Continuous Dictation Mode
+# Continuous Dictation Mode with Auto Silence Detection
 continuous_mode:
   # Enable continuous dictation mode by default
   enabled: false
 
   # Silence detection threshold (seconds)
-  # After this many seconds of silence, automatically transcribe
+  # After this many seconds of silence, automatically stop recording and transcribe
+  # Uses Voice Activity Detection (VAD) to monitor audio energy levels
+  # Recommended: 1.5-3.0 seconds (lower = more responsive, higher = less false stops)
   silence_threshold: 2.0
 
   # Minimum audio length to transcribe (seconds)
+  # Prevents transcription of very short audio clips (e.g., background noise)
+  # Recommended: 0.3-1.0 seconds
   minimum_audio_length: 0.5
 
 # System Tray Icon
