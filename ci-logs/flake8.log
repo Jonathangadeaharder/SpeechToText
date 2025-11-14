@@ -1,8 +1,0 @@
-=== Critical Errors ===
-0
-
-=== All Issues ===
-./dictation.py:892:1: W293 blank line contains whitespace
-1     W293 blank line contains whitespace
-1
-Exit code: 1

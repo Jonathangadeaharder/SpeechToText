@@ -1,6 +1,0 @@
-Running bandit security scan...
-/bin/bash: line 1: bandit: command not found
-
-=== Bandit Screen Output ===
-/bin/bash: line 1: bandit: command not found
-Exit code: 127

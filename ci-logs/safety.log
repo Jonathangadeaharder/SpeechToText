@@ -1,5 +1,0 @@
-Running safety vulnerability check...
-
-=== Safety Screen Output ===
-/bin/bash: line 1: safety: command not found
-Exit code: 127

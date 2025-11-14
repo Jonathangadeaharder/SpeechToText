@@ -176,10 +176,107 @@ jobs:
           security-install.log
         retention-days: 30
 
+  commit-logs:
+    name: Commit CI Logs to Branch
+    runs-on: ubuntu-latest
+    needs: [test, lint, security]
+    if: github.event_name == 'pull_request' && always()
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code with full history
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.head_ref }}
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Download test artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: test-logs-*
+        path: ci-logs/
+        merge-multiple: true
+      continue-on-error: true
+
+    - name: Download lint artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: lint-logs
+        path: ci-logs/
+      continue-on-error: true
+
+    - name: Download security artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: security-reports
+        path: ci-logs/
+      continue-on-error: true
+
+    - name: Create CI logs summary
+      run: |
+        cat > ci-logs/README.md << 'EOF'
+        # CI Automated Check Results
+
+        Generated: $(date -u)
+        Workflow Run: ${{ github.run_number }}
+        Commit: ${{ github.sha }}
+
+        ## 📊 Results Summary
+
+        - **Tests**: ${{ needs.test.result }}
+        - **Lint**: ${{ needs.lint.result }}
+        - **Security**: ${{ needs.security.result }}
+
+        ## 📦 Available Logs
+
+        Check the files in this directory for detailed output from each CI job.
+
+        - `pytest.log` - Test results
+        - `black.log` - Code formatting issues
+        - `flake8.log` - Linting results
+        - `pylint.log` - Code quality
+        - `bandit.log` - Security scan
+        - `safety.log` - Dependency vulnerabilities
+
+        ## 🔄 Auto-Generated
+
+        These logs are automatically committed by the CI workflow.
+        Pull the branch to review them locally: `git pull`
+        EOF
+
+    - name: Configure git
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+    - name: Commit logs (amend to avoid spam)
+      run: |
+        # Force add ci-logs even if files match .gitignore patterns
+        git add -f ci-logs/ || true
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          # Check if ci-logs already exists in last commit
+          if git show HEAD:ci-logs/README.md > /dev/null 2>&1; then
+            echo "Updating existing CI logs"
+            git commit --amend --no-edit
+          else
+            echo "Adding CI logs for first time"
+            git commit -m "Add CI check logs (auto-generated)"
+          fi
+        fi
+
+    - name: Push logs back to branch
+      run: |
+        git push --force-with-lease origin ${{ github.head_ref }}
+      continue-on-error: true
+
   all-checks-pass:
     name: All CI Checks Passed
     runs-on: ubuntu-latest
-    needs: [test, lint, security]
+    needs: [test, lint, security, commit-logs]
     if: always()
 
     steps:
@@ -189,6 +286,7 @@ jobs:
         echo "  Test: ${{ needs.test.result }}"
         echo "  Lint: ${{ needs.lint.result }}"
         echo "  Security: ${{ needs.security.result }}"
+        echo "  Commit Logs: ${{ needs.commit-logs.result }}"
         echo ""
 
         # For initial rollout, pass if jobs completed (even with errors)
@@ -199,6 +297,7 @@ jobs:
               "${{ needs.security.result }}" != "cancelled" ]]; then
           echo "✅ CI checks completed! Review logs for any issues."
           echo "💡 Note: CI is currently informational. See .github/BRANCH_PROTECTION.md to enforce."
+          echo "📥 Logs committed to branch - run 'git pull' to review them."
           exit 0
         else
           echo "❌ Some CI checks were cancelled"
