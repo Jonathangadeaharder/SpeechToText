@@ -181,3 +181,115 @@ advanced:
 
   # Number of worker threads for transcription
   transcription_threads: 1
+
+# Custom Voice Commands
+# Define your own voice commands that can type text, execute files, or press key combinations
+#
+# ⚠️  SECURITY WARNING ⚠️
+# The 'execute_file' action type allows running arbitrary programs via voice commands.
+# This is a significant security risk as it could be exploited to run malicious code.
+#
+# ONLY enable this feature if:
+# - You understand the security implications
+# - You trust all users who will have access to this system
+# - You have carefully reviewed all custom commands with execute_file actions
+# - You use only absolute paths to trusted executables
+#
+# RECOMMENDATIONS:
+# - Keep this feature DISABLED unless absolutely necessary
+# - Use type_text, copy_to_clipboard, or key_combination actions instead
+# - Never use user-specific or hardcoded paths
+# - Document all execute_file commands and their purpose
+custom_commands:
+  # Enable custom commands feature (DISABLED by default for security)
+  enabled: false
+
+  # Define your custom commands below
+  # Each command must have a 'trigger' phrase and an 'action' with type and parameters
+  commands:
+    # Example 1: Type text when you say a command
+    - trigger: "insert email"
+      action:
+        type: "type_text"
+        text: "your.email@example.com"
+
+    - trigger: "insert signature"
+      action:
+        type: "type_text"
+        text: "Best regards,\nYour Name\nYour Title"
+
+    # Example 2: Execute a file or program
+    # IMPORTANT: Always use absolute paths for security
+    - trigger: "open calculator"
+      action:
+        type: "execute_file"
+        path: "C:\\Windows\\System32\\calc.exe"  # Windows calculator - absolute path
+
+    - trigger: "open notepad"
+      action:
+        type: "execute_file"
+        path: "C:\\Windows\\System32\\notepad.exe"  # Notepad - absolute path
+
+    # - trigger: "run my script"
+    #   action:
+    #     type: "execute_file"
+    #     path: "C:\\path\\to\\your\\script.bat"
+
+    # Example 3: Press key combinations
+    - trigger: "save file"
+      action:
+        type: "key_combination"
+        keys: ["ctrl", "s"]
+
+    - trigger: "copy that"
+      action:
+        type: "key_combination"
+        keys: ["ctrl", "c"]
+
+    - trigger: "paste that"
+      action:
+        type: "key_combination"
+        keys: ["ctrl", "v"]
+
+    - trigger: "new tab"
+      action:
+        type: "key_combination"
+        keys: ["ctrl", "t"]
+
+    - trigger: "close tab"
+      action:
+        type: "key_combination"
+        keys: ["ctrl", "w"]
+
+    - trigger: "undo that"
+      action:
+        type: "key_combination"
+        keys: ["ctrl", "z"]
+
+    - trigger: "find text"
+      action:
+        type: "key_combination"
+        keys: ["ctrl", "f"]
+
+    - trigger: "switch app"
+      action:
+        type: "key_combination"
+        keys: ["alt", "tab"]
+
+    # # Example admin commands (disabled for security - customize for your needs)
+    # - trigger: "admin user"
+    #   action:
+    #     type: "copy_to_clipboard"
+    #     text: ".\\localadm"
+
+  # Notes:
+  # - trigger: The phrase you say (case-insensitive, after wake word "AGENT")
+  # - action.type: Must be one of: "type_text", "copy_to_clipboard", "execute_file", "key_combination"
+  # - action.text: The text to type or copy (supports \n for newlines, \t for tabs)
+  # - action.path: Full path to file/program to execute
+  # - action.keys: List of keys to press together
+  #   Available keys: ctrl, alt, shift, cmd, tab, enter, space, esc, backspace,
+  #                   delete, home, end, pageup, pagedown, up, down, left, right,
+  #                   f1-f12, a-z, 0-9
+  #
+  # Custom commands are checked BEFORE built-in commands, so you can override defaults
