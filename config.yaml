@@ -219,15 +219,16 @@ custom_commands:
         text: "Best regards,\nYour Name\nYour Title"
 
     # Example 2: Execute a file or program
+    # IMPORTANT: Always use absolute paths for security
     - trigger: "open calculator"
       action:
         type: "execute_file"
-        path: "calc.exe"  # Windows calculator
+        path: "C:\\Windows\\System32\\calc.exe"  # Windows calculator - absolute path
 
     - trigger: "open notepad"
       action:
         type: "execute_file"
-        path: "notepad.exe"
+        path: "C:\\Windows\\System32\\notepad.exe"  # Notepad - absolute path
 
     # - trigger: "run my script"
     #   action:

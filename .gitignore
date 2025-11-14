@@ -87,8 +87,7 @@ dmypy.json
 .claude/settings.local.json
 *password*.bat
 *admin*.bat
-copy_*.bat
+copy_admin_*.bat
 
-# Build artifacts and pip logs
-3.0.0
+# Pip logs
 pip-*.log
