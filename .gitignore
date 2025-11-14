@@ -92,7 +92,17 @@ copy_admin_*.bat
 # Pip logs
 pip-*.log
 
-# CI/CD artifacts
+# CI/CD artifacts and logs
 bandit-report.json
+bandit.log
 safety-report.json
+safety.log
+security-install.log
+pytest.log
+install.log
+lint-install.log
+black.log
+flake8.log
+pylint.log
+requirements-ci.txt
 .github/workflows/*.log

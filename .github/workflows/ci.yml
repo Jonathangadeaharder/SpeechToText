@@ -34,16 +34,29 @@ jobs:
         python -m pip install --upgrade pip
         # Install dependencies, skip PyAudio in CI (requires compilation)
         grep -v "PyAudio" requirements.txt > requirements-ci.txt || true
-        pip install -r requirements-ci.txt || true
+        pip install -r requirements-ci.txt > install.log 2>&1 || true
         # Install testing dependencies separately
-        pip install pytest pytest-cov
+        pip install pytest pytest-cov >> install.log 2>&1
+        cat install.log
       continue-on-error: true
 
     - name: Run tests with pytest
       run: |
-        # Run tests if they exist, skip if no tests found
-        pytest --verbose --cov=. --cov-report=xml --cov-report=term || echo "No tests to run or tests failed"
+        # Run tests if they exist, save output to log file
+        pytest --verbose --cov=. --cov-report=xml --cov-report=term > pytest.log 2>&1 || echo "Tests completed with issues"
+        cat pytest.log
       continue-on-error: true
+
+    - name: Upload test logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-logs-python-${{ matrix.python-version }}
+        path: |
+          pytest.log
+          install.log
+          coverage.xml
+        retention-days: 30
 
   lint:
     name: Code Quality & Linting
@@ -61,26 +74,44 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install black flake8 pylint mypy || true
+        pip install black flake8 pylint mypy > lint-install.log 2>&1 || true
+        cat lint-install.log
       continue-on-error: true
 
     - name: Check code formatting with black
       run: |
-        black --check --diff . || echo "Black formatting check completed with issues"
+        black --check --diff . > black.log 2>&1 || echo "Black formatting check completed with issues"
+        cat black.log
       continue-on-error: true
 
     - name: Lint with flake8
       run: |
         # Stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics || true
-        # Exit-zero treats all errors as warnings
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true
+        echo "=== Critical Errors ===" > flake8.log
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics >> flake8.log 2>&1 || true
+        echo "" >> flake8.log
+        echo "=== All Issues ===" >> flake8.log
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics >> flake8.log 2>&1 || true
+        cat flake8.log
       continue-on-error: true
 
     - name: Lint with pylint
       run: |
-        find . -name "*.py" -type f -exec pylint {} + --exit-zero || echo "Pylint completed"
+        find . -name "*.py" -type f -exec pylint {} + --exit-zero > pylint.log 2>&1 || echo "Pylint completed"
+        cat pylint.log
       continue-on-error: true
+
+    - name: Upload lint logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: lint-logs
+        path: |
+          lint-install.log
+          black.log
+          flake8.log
+          pylint.log
+        retention-days: 30
 
   security:
     name: Security Checks
@@ -97,27 +128,53 @@ jobs:
     - name: Install security tools
       run: |
         python -m pip install --upgrade pip
-        pip install bandit safety || true
+        pip install bandit safety > security-install.log 2>&1 || true
+        cat security-install.log
       continue-on-error: true
 
     - name: Run bandit security scan
       run: |
-        bandit -r . -f json -o bandit-report.json || true
-        bandit -r . -f screen || echo "Bandit scan completed"
+        echo "Running bandit security scan..." > bandit.log
+        bandit -r . -f json -o bandit-report.json >> bandit.log 2>&1 || true
+        echo "" >> bandit.log
+        echo "=== Bandit Screen Output ===" >> bandit.log
+        bandit -r . -f screen >> bandit.log 2>&1 || echo "Bandit scan completed"
+        cat bandit.log
       continue-on-error: true
 
     - name: Check dependencies for known vulnerabilities
       run: |
-        safety check --json || true
-        safety check || echo "Safety check completed"
+        echo "Running safety vulnerability check..." > safety.log
+        safety check --json > safety-report.json 2>&1 || true
+        echo "" >> safety.log
+        echo "=== Safety Screen Output ===" >> safety.log
+        safety check >> safety.log 2>&1 || echo "Safety check completed"
+        cat safety.log
       continue-on-error: true
 
-    - name: Upload security reports
+    - name: Upload security reports (always)
       uses: actions/upload-artifact@v4
       if: always()
       with:
         name: security-reports
-        path: bandit-report.json
+        path: |
+          bandit-report.json
+          bandit.log
+          safety-report.json
+          safety.log
+          security-install.log
+        retention-days: 30
+
+    - name: Upload security logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-failure-logs
+        path: |
+          bandit.log
+          safety.log
+          security-install.log
+        retention-days: 30
 
   all-checks-pass:
     name: All CI Checks Passed
