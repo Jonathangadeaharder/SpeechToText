@@ -1,0 +1,315 @@
+#!/usr/bin/env python3
+"""
+Benchmark different Whisper model configurations for responsive dictation.
+
+Tests various model sizes and compute types to determine which can process
+10 seconds of audio in under 500ms for responsive dictation experience.
+
+Usage:
+    python benchmark_models.py
+"""
+
+import gc
+import io
+import time
+import wave
+from typing import Dict, List, Tuple
+
+import numpy as np
+import pyaudio
+from faster_whisper import WhisperModel
+
+# Model configurations to test
+# Full list (commented out - larger models don't meet 500ms target)
+# MODEL_CONFIGS = [
+#     {"name": "tiny.en", "compute_type": "int8", "device": "cpu"},
+#     {"name": "tiny.en", "compute_type": "float16", "device": "cuda"},
+#     {"name": "base.en", "compute_type": "int8", "device": "cpu"},
+#     {"name": "base.en", "compute_type": "float16", "device": "cuda"},
+#     {"name": "small.en", "compute_type": "int8", "device": "cpu"},
+#     {"name": "small.en", "compute_type": "float16", "device": "cuda"},
+#     {"name": "medium.en", "compute_type": "int8", "device": "cpu"},
+#     {"name": "medium.en", "compute_type": "float16", "device": "cuda"},
+#     {"name": "large-v3-turbo", "compute_type": "float16", "device": "cuda"},
+# ]
+
+# Turbo model optimization - test key configurations only
+# Testing: beam_size, vad_filter, and without_timestamps
+MODEL_CONFIGS = [
+    # Beam size variations (most important factor)
+    {"name": "deepdml/faster-whisper-large-v3-turbo-ct2", "compute_type": "float16", "device": "cuda", "beam_size": 1, "vad_filter": False, "without_timestamps": False},
+    {"name": "deepdml/faster-whisper-large-v3-turbo-ct2", "compute_type": "float16", "device": "cuda", "beam_size": 5, "vad_filter": False, "without_timestamps": False},
+
+    # VAD filter test
+    {"name": "deepdml/faster-whisper-large-v3-turbo-ct2", "compute_type": "float16", "device": "cuda", "beam_size": 5, "vad_filter": True, "without_timestamps": False},
+
+    # Without timestamps test (faster decoding)
+    {"name": "deepdml/faster-whisper-large-v3-turbo-ct2", "compute_type": "float16", "device": "cuda", "beam_size": 5, "vad_filter": False, "without_timestamps": True},
+
+    # Combined optimizations
+    {"name": "deepdml/faster-whisper-large-v3-turbo-ct2", "compute_type": "float16", "device": "cuda", "beam_size": 1, "vad_filter": False, "without_timestamps": True},
+]
+
+# Audio configuration
+SAMPLE_RATE = 16000
+CHANNELS = 1
+AUDIO_DURATION = 10.0  # 10 seconds
+TARGET_LATENCY = 0.5  # 500ms - target processing time for responsive dictation
+
+
+def generate_test_audio(duration: float = 10.0) -> np.ndarray:
+    """
+    Generate test audio (silence) for benchmarking.
+
+    Args:
+        duration: Duration in seconds
+
+    Returns:
+        Audio as numpy float32 array
+    """
+    print(f"Generating {duration}s test audio...")
+
+    # Generate silence - fastest to process
+    samples = int(SAMPLE_RATE * duration)
+
+    # Use float32 format that Whisper expects
+    # Just a very quiet noise floor to simulate real audio
+    audio_data = np.random.normal(0, 0.001, samples).astype(np.float32)
+
+    print(f"Generated {duration}s test audio ({audio_data.shape[0]} samples)")
+    return audio_data
+
+
+def benchmark_model(config: Dict, test_audio: np.ndarray, num_runs: int = 3) -> Dict:
+    """
+    Benchmark a specific model configuration.
+
+    Args:
+        config: Model configuration dict
+        test_audio: WAV audio buffer
+        num_runs: Number of runs to average
+
+    Returns:
+        Benchmark results
+    """
+    model_name = config["name"]
+    compute_type = config["compute_type"]
+    device = config["device"]
+    beam_size = config.get("beam_size", 5)
+    vad_filter = config.get("vad_filter", False)
+    without_timestamps = config.get("without_timestamps", False)
+
+    print(f"\n{'='*70}")
+    print(f"Testing: {model_name}")
+    print(f"  Compute: {compute_type}, Device: {device}")
+    print(f"  Beam size: {beam_size}, VAD filter: {vad_filter}, Without timestamps: {without_timestamps}")
+    print(f"{'='*70}")
+
+    results = {
+        "name": model_name,
+        "compute_type": compute_type,
+        "device": device,
+        "beam_size": beam_size,
+        "vad_filter": vad_filter,
+        "without_timestamps": without_timestamps,
+        "load_time": 0,
+        "transcription_times": [],
+        "avg_transcription_time": 0,
+        "is_fast_enough": False,
+        "error": None,
+    }
+
+    try:
+        # Load model and measure load time
+        print(f"Loading model...")
+        load_start = time.time()
+        model = WhisperModel(model_name, device=device, compute_type=compute_type)
+        results["load_time"] = time.time() - load_start
+        print(f"Model loaded in {results['load_time']:.2f}s")
+
+        # Warmup run (not counted) - important for GPU models
+        print(f"\nWarmup run...")
+        segments, _ = model.transcribe(
+            test_audio,
+            beam_size=beam_size,
+            language="en",
+            vad_filter=vad_filter,
+            without_timestamps=without_timestamps
+        )
+        _ = list(segments)  # Force processing
+        print(f"Warmup complete")
+
+        # Run transcription multiple times
+        transcription_times = []
+        for run in range(num_runs):
+            print(f"\nTranscription run {run + 1}/{num_runs}...")
+
+            # Transcribe and measure time
+            start = time.time()
+            segments, info = model.transcribe(
+                test_audio,
+                beam_size=beam_size,
+                language="en",
+                vad_filter=vad_filter,
+                without_timestamps=without_timestamps
+            )
+
+            # Consume segments (force processing)
+            text = " ".join(segment.text for segment in segments)
+
+            transcription_time = time.time() - start
+            transcription_times.append(transcription_time)
+
+            print(f"   Time: {transcription_time*1000:.0f}ms")
+            print(f"   Text: '{text[:50]}{'...' if len(text) > 50 else ''}'")
+
+        # Calculate statistics
+        results["transcription_times"] = transcription_times
+        results["avg_transcription_time"] = np.mean(transcription_times)
+        results["min_transcription_time"] = np.min(transcription_times)
+        results["max_transcription_time"] = np.max(transcription_times)
+        results["std_transcription_time"] = np.std(transcription_times)
+
+        # Target: processing time < 500ms for responsive dictation
+        results["is_fast_enough"] = results["avg_transcription_time"] < TARGET_LATENCY
+
+        # Print summary
+        print(f"\nResults:")
+        print(f"   Avg time:        {results['avg_transcription_time']*1000:.0f}ms")
+        print(f"   Min time:        {results['min_transcription_time']*1000:.0f}ms")
+        print(f"   Max time:        {results['max_transcription_time']*1000:.0f}ms")
+        print(f"   Std dev:         {results['std_transcription_time']*1000:.0f}ms")
+
+        if results["is_fast_enough"]:
+            print(f"   FAST ENOUGH (< {TARGET_LATENCY*1000:.0f}ms)")
+        else:
+            print(f"   TOO SLOW (target: < {TARGET_LATENCY*1000:.0f}ms)")
+
+        # Clean up model to free memory
+        print(f"\nCleaning up model...")
+        del model
+        gc.collect()
+
+        # Clear CUDA cache if using GPU
+        if device == "cuda":
+            try:
+                import torch
+                torch.cuda.empty_cache()
+                print(f"CUDA cache cleared")
+            except:
+                pass
+
+    except Exception as e:
+        print(f"Error: {e}")
+        results["error"] = str(e)
+
+        # Clean up on error too
+        try:
+            del model
+            gc.collect()
+            if device == "cuda":
+                import torch
+                torch.cuda.empty_cache()
+        except:
+            pass
+
+    return results
+
+
+def print_summary(all_results: List[Dict]):
+    """Print summary comparison of all configurations."""
+    print(f"\n{'='*80}")
+    print(f"{'SUMMARY - Configuration Performance Comparison':^80}")
+    print(f"{'='*80}")
+
+    # Filter out failed results
+    valid_results = [r for r in all_results if r["error"] is None]
+
+    if not valid_results:
+        print("No successful benchmarks!")
+        return
+
+    # Sort by transcription time (fastest first)
+    valid_results.sort(key=lambda x: x["avg_transcription_time"])
+
+    # Print table header
+    print(f"\n{'Config':<50} {'Beam':<6} {'VAD':<5} {'NoTS':<5} {'Time':<8} {'Fast?':<6}")
+    print(f"{'-'*80}")
+
+    # Print each result
+    for i, r in enumerate(valid_results, 1):
+        # Create short config label
+        beam = r.get("beam_size", 5)
+        vad = "Yes" if r.get("vad_filter", False) else "No"
+        no_ts = "Yes" if r.get("without_timestamps", False) else "No"
+        avg_time_ms = r["avg_transcription_time"] * 1000
+        fast_str = "YES" if r["is_fast_enough"] else "NO"
+
+        print(f"Config {i:<43} {beam:<6} {vad:<5} {no_ts:<5} {avg_time_ms:>5.0f}ms {fast_str:<6}")
+
+    # Recommendations
+    print(f"\n{'RECOMMENDATIONS':^80}")
+    print(f"{'-'*80}")
+
+    fast_models = [r for r in valid_results if r["is_fast_enough"]]
+    if fast_models:
+        fastest = fast_models[0]
+        print(f"FASTEST CONFIGURATION (< {TARGET_LATENCY*1000:.0f}ms):")
+        print(f"   Avg time: {fastest['avg_transcription_time']*1000:.0f}ms for {AUDIO_DURATION}s audio")
+        print(f"   Beam size: {fastest.get('beam_size', 5)}")
+        print(f"   VAD filter: {fastest.get('vad_filter', False)}")
+        print(f"   Without timestamps: {fastest.get('without_timestamps', False)}")
+
+        # Find best accuracy (highest beam size among fast models)
+        best_accuracy = max(fast_models, key=lambda x: x.get("beam_size", 5))
+        if best_accuracy != fastest:
+            print(f"\nBEST ACCURACY (< {TARGET_LATENCY*1000:.0f}ms):")
+            print(f"   Avg time: {best_accuracy['avg_transcription_time']*1000:.0f}ms for {AUDIO_DURATION}s audio")
+            print(f"   Beam size: {best_accuracy.get('beam_size', 5)}")
+            print(f"   VAD filter: {best_accuracy.get('vad_filter', False)}")
+            print(f"   Without timestamps: {best_accuracy.get('without_timestamps', False)}")
+    else:
+        print(f"NO MODELS UNDER {TARGET_LATENCY*1000:.0f}ms FOUND!")
+        print("   Try:")
+        print("   - Use smaller model (tiny.en or base.en)")
+        print("   - Use GPU (CUDA) instead of CPU")
+        print("   - Use int8 quantization")
+
+
+def main():
+    """Run model benchmarks."""
+    print("="*80)
+    print(f"{'Turbo Model Optimization Benchmark':^80}")
+    print("="*80)
+    print(f"\nTest configuration:")
+    print(f"  Model: deepdml/faster-whisper-large-v3-turbo-ct2")
+    print(f"  Audio duration: {AUDIO_DURATION}s")
+    print(f"  Sample rate: {SAMPLE_RATE} Hz")
+    print(f"  Runs per config: 3")
+    print(f"  Goal: Transcription time < {TARGET_LATENCY*1000:.0f}ms")
+    print(f"\nTesting parameters:")
+    print(f"  - Beam sizes: 1, 3, 5, 7")
+    print(f"  - VAD filter: True/False")
+    print(f"  - Without timestamps: True/False")
+    print(f"\nNote: Model loading time is not counted (happens once at startup)")
+
+    # Generate test audio once
+    test_audio = generate_test_audio(AUDIO_DURATION)
+
+    # Benchmark each configuration
+    all_results = []
+    for i, config in enumerate(MODEL_CONFIGS, 1):
+        print(f"\n[Configuration {i}/{len(MODEL_CONFIGS)}]")
+        results = benchmark_model(config, test_audio)
+        all_results.append(results)
+
+    # Print summary
+    print_summary(all_results)
+
+    print(f"\n{'='*80}")
+    print("Benchmark complete!")
+    print(f"{'='*80}\n")
+
+
+if __name__ == "__main__":
+    main()

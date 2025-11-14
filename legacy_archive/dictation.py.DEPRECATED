@@ -45,6 +45,15 @@ except ImportError:
     PYAUTOGUI_AVAILABLE = False
     logging.warning("pyautogui not available. Screen segmentation features disabled.")
 
+# File watching for auto-reload
+try:
+    from watchdog.observers import Observer
+    from watchdog.events import FileSystemEventHandler
+    WATCHDOG_AVAILABLE = True
+except ImportError:
+    WATCHDOG_AVAILABLE = False
+    print("⚠️  watchdog not installed - auto-reload disabled. Install with: pip install watchdog")
+
 # Platform-specific UI automation imports
 PYWINAUTO_AVAILABLE = False
 if platform.system() == "Windows":
@@ -308,9 +317,8 @@ class NumberedOverlay:
         self.root.config(bg="black")
         self.root.title("Voice Control Grid")
 
-        # Make window click-through on Windows
-        if platform.system() == "Windows":
-            self.root.attributes("-transparentcolor", "black")
+        # Make window click-through
+        self.root.attributes("-transparentcolor", "black")
 
         # Create or clear canvas
         if self.canvas:
@@ -370,9 +378,10 @@ class NumberedOverlay:
         self.mode = "grid"
         self.is_visible = True
         print(f"✓ Grid overlay shown with {len(self.elements)} cells")
-        print("  Say 'AGENT CLICK [number]' to click a cell")
-        print("  Say 'AGENT REFINE GRID [number]' to zoom into a cell")
-        print("  Say 'AGENT HIDE NUMBERS' to close")
+        print("  Say '[number]' to move mouse to cell")
+        print("  Say 'CLICK' to click")
+        print("  Say 'REFINE [number]' to zoom into a cell")
+        print("  Say 'HIDE NUMBERS' to close")
 
     def _refine_grid_cell_impl(self, cell_number: int):
         """Implementation of refine_grid_cell - runs on GUI thread."""
@@ -460,8 +469,9 @@ class NumberedOverlay:
 
         self.mode = "grid_zoomed"
         print(f"✓ Zoomed into cell {cell_number} with 3×3 grid (9 cells)")
-        print("  Say 'AGENT CLICK [number]' to click a cell")
-        print("  Say 'AGENT SHOW GRID' to reset to full grid")
+        print("  Say '[number]' to move mouse to cell")
+        print("  Say 'CLICK' to click")
+        print("  Say 'GRID' to reset to full grid")
 
     def show_numbers(self, max_elements: int = 25):
         """
@@ -477,8 +487,8 @@ class NumberedOverlay:
 
     def _show_numbers_impl(self, max_elements: int):
         """Implementation of show_numbers - runs on GUI thread."""
-        # Try advanced element detection on Windows
-        if platform.system() == "Windows" and PYWINAUTO_AVAILABLE:
+        # Try advanced element detection
+        if PYWINAUTO_AVAILABLE:
             try:
                 self._show_detected_elements_impl(max_elements)
                 return
@@ -589,9 +599,8 @@ class NumberedOverlay:
         self.root.attributes("-alpha", 0.8)
         self.root.config(bg="black")
 
-        # Make window click-through on Windows
-        if platform.system() == "Windows":
-            self.root.attributes("-transparentcolor", "black")
+        # Make window click-through
+        self.root.attributes("-transparentcolor", "black")
 
         # Create or clear canvas
         if self.canvas:
@@ -634,8 +643,8 @@ class NumberedOverlay:
         self.mode = "elements"
         self.is_visible = True
         print(f"✓ Element overlay shown with {len(self.elements)} elements")
-        print("  Say 'AGENT CLICK [number]' to click an element")
-        print("  Say 'AGENT HIDE NUMBERS' to close")
+        print("  Say 'CLICK [number]' to click an element")
+        print("  Say 'HIDE NUMBERS' to close")
 
     def show_windows(self, windows_dict: Dict[int, tuple]):
         """Show numbered window list in overlay."""
@@ -660,9 +669,12 @@ class NumberedOverlay:
         self.root.deiconify()  # Show window
         self.root.attributes("-fullscreen", True)
         self.root.attributes("-topmost", True)
-        self.root.attributes("-alpha", 0.95)
+        self.root.attributes("-alpha", 0.8)
         self.root.config(bg="black")
         self.root.title("Window List")
+
+        # Make window click-through (transparent black background)
+        self.root.attributes("-transparentcolor", "black")
 
         # Create or clear canvas
         if self.canvas:
@@ -699,8 +711,8 @@ class NumberedOverlay:
         self.canvas.create_text(
             box_x + box_width // 2,
             box_y + 25,
-            text="OPEN WINDOWS - Say 'AGENT SWITCH WINDOW [number]'",
-            font=("Arial", 14, "bold"),
+            text="OPEN WINDOWS - Say '[number]' to maximize | '[X] LEFT [Y] RIGHT' to split",
+            font=("Arial", 12, "bold"),
             fill="#00ff00",
         )
 
@@ -735,7 +747,7 @@ class NumberedOverlay:
         self.canvas.create_text(
             box_x + box_width // 2,
             box_y + box_height - 20,
-            text="Say 'AGENT HIDE NUMBERS' to close",
+            text="Say 'HIDE WINDOWS' to close",
             font=("Arial", 10),
             fill="#888888",
         )
@@ -777,6 +789,308 @@ class NumberedOverlay:
             pyautogui.doubleClick(x, y)
             print(f"✓ Double-clicked element {number} at ({x}, {y})")
 
+    def show_rows(self, max_rows: int = 50):
+        """Show numbered rows overlay for row selection."""
+        if not PYAUTOGUI_AVAILABLE:
+            print("⚠ PyAutoGUI not available. Install with: pip install pyautogui")
+            return
+
+        # Queue the GUI operations
+        self._queue_command(self._show_rows_impl, max_rows)
+
+    def _show_rows_impl(self, max_rows: int):
+        """Implementation of show_rows - runs on GUI thread."""
+        self._cleanup_impl()
+
+        # Get screen size
+        screen_width, screen_height = pyautogui.size()
+
+        # Calculate row height
+        row_height = screen_height // max_rows
+
+        # Setup overlay window
+        self.root.deiconify()  # Show window
+        self.root.attributes("-fullscreen", True)
+        self.root.attributes("-topmost", True)
+        self.root.attributes("-alpha", 0.7)
+        self.root.config(bg="black")
+        self.root.title("Voice Control Rows")
+
+        # Make window click-through
+        self.root.attributes("-transparentcolor", "black")
+
+        # Create or clear canvas
+        if self.canvas:
+            self.canvas.delete("all")
+        else:
+            self.canvas = tk.Canvas(
+                self.root,
+                bg="black",
+                highlightthickness=0,
+                width=screen_width,
+                height=screen_height,
+            )
+            self.canvas.pack()
+
+        # Calculate dynamic sizing based on row height
+        # Font size should be smaller to fit in row
+        font_size = max(8, min(12, int(row_height * 0.5)))
+        # Box height should be slightly smaller than row height
+        box_half_height = min(10, int(row_height * 0.4))
+        # Box width based on max number of digits (50 = 2 digits)
+        box_half_width = max(15, int(box_half_height * 1.5))
+
+        # Draw rows and create numbered elements
+        self.elements.clear()
+        for row_num in range(1, max_rows + 1):
+            y_pos = (row_num - 0.5) * row_height
+
+            # Ensure y_pos is within screen bounds
+            if y_pos >= screen_height:
+                break
+
+            # Draw horizontal line
+            self.canvas.create_line(
+                0, y_pos, screen_width, y_pos,
+                fill="cyan", width=1, dash=(5, 5)
+            )
+
+            # Store element position (center of screen at this row)
+            center_x = screen_width // 2
+            self.elements[row_num] = (center_x, int(y_pos), screen_width, row_height)
+
+            # Create label with background (at left edge)
+            label_x = 30
+            self.canvas.create_rectangle(
+                label_x - box_half_width,
+                y_pos - box_half_height,
+                label_x + box_half_width,
+                y_pos + box_half_height,
+                fill="cyan",
+                outline="blue",
+                width=1,
+            )
+            self.canvas.create_text(
+                label_x,
+                y_pos,
+                text=str(row_num),
+                font=("Arial", font_size, "bold"),
+                fill="black",
+            )
+
+        self.mode = "rows"
+        self.is_visible = True
+        print(f"✓ Row overlay shown with {len(self.elements)} rows")
+        print("  Say '[NUMBER] to [NUMBER]' to select rows")
+        print("  Say 'HIDE NUMBERS' to close")
+
+    def show_commands(self):
+        """Show available voice commands overlay."""
+        # Queue the GUI operations
+        self._queue_command(self._show_commands_impl)
+
+    def _show_commands_impl(self):
+        """Implementation of show_commands - runs on GUI thread."""
+        self._cleanup_impl()
+
+        # Get screen size
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+
+        # Setup overlay window
+        self.root.deiconify()  # Show window
+        self.root.attributes("-fullscreen", True)
+        self.root.attributes("-topmost", True)
+        self.root.attributes("-alpha", 0.95)
+        self.root.config(bg="#1a1a1a")
+        self.root.title("Voice Commands")
+
+        # Create scrollable frame
+        if self.canvas:
+            self.canvas.delete("all")
+            self.canvas.destroy()
+
+        # Create canvas with scrollbar
+        self.canvas = tk.Canvas(
+            self.root,
+            bg="#1a1a1a",
+            highlightthickness=0,
+        )
+        scrollbar = tk.Scrollbar(self.root, orient="vertical", command=self.canvas.yview)
+        scrollable_frame = tk.Frame(self.canvas, bg="#1a1a1a")
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        )
+
+        self.canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+
+        # Title
+        title = tk.Label(
+            scrollable_frame,
+            text="📋 AVAILABLE VOICE COMMANDS",
+            font=("Arial", 20, "bold"),
+            bg="#1a1a1a",
+            fg="#00ff00",
+            pady=20
+        )
+        title.pack()
+
+        # Command categories
+        commands = {
+            "🎯 BASIC COMMANDS": [
+                "ENTER - Press Enter key",
+                "SPACE - Press Space key",
+                "TAB - Press Tab key",
+                "CYCLE - Press Shift+Tab (backward)",
+                "ESCAPE - Press Escape key",
+                "DELETE - Press Backspace",
+                "START MENU / WINDOWS KEY - Open Start Menu",
+            ],
+            "⌨️ KEYBOARD SHORTCUTS": [
+                "COPY - Copy selection (Ctrl+C)",
+                "PASTE - Paste clipboard (Ctrl+V)",
+                "CUT - Cut selection (Ctrl+X)",
+                "SELECT ALL - Select all (Ctrl+A)",
+                "SAVE - Save file (Ctrl+S)",
+                "FIND - Open find (Ctrl+F)",
+                "UNDO - Undo last action (Ctrl+Z)",
+                "REDO - Redo last action (Ctrl+Y)",
+                "CLOSE - Close window (Alt+F4)",
+            ],
+            "🪟 WINDOW MANAGEMENT": [
+                "WINDOWS / SHOW WINDOWS - Show numbered windows",
+                "[NUMBER] - Switch to window (when windows shown)",
+                "[N] LEFT [M] RIGHT - Arrange 2 windows side-by-side",
+                "MAXIMIZE - Maximize window (Win+Up)",
+                "MINIMIZE - Minimize window (Win+Down)",
+                "MOVE WINDOW LEFT - Snap to left (Win+Left)",
+                "MOVE WINDOW RIGHT - Snap to right (Win+Right)",
+                "SWITCH / SWITCH WINDOW - Next window (Alt+Tab)",
+                "SWITCH TAB - Next browser tab (Ctrl+Tab)",
+            ],
+            "🖱️ MOUSE & GRID": [
+                "GRID - Show 9×9 numbered grid",
+                "REFINE [NUMBER] - Zoom into grid cell",
+                "NUMBERS / SHOW NUMBERS - Auto-detect UI elements",
+                "[NUMBER] - Move to grid/element (when shown)",
+                "CLICK - Left click",
+                "CLICK [NUMBER] - Click numbered element",
+                "RIGHT CLICK - Right click",
+                "MOVE UP/DOWN/LEFT/RIGHT - Move mouse (exponential)",
+                "SCROLL UP/DOWN/LEFT/RIGHT - Scroll (exponential)",
+            ],
+            "📊 ROW SELECTION": [
+                "ROWS / SHOW ROWS - Show 50 numbered rows",
+                "[N] TO [M] - Select rows N to M",
+            ],
+            "⬅️ ARROW KEYS": [
+                "LEFT - Press left arrow",
+                "RIGHT - Press right arrow",
+                "UP - Press up arrow",
+                "DOWN - Press down arrow",
+            ],
+            "🔣 SYMBOL TYPING": [
+                "SLASH / - Forward slash",
+                "BACKSLASH \\ - Backslash",
+                "OPEN / CLOSE ( ) - Parentheses",
+                "CURLY OPEN / CLOSE { } - Curly braces",
+                "ARRAY OPEN / CLOSE [ ] - Square brackets",
+                "EQUAL = - Equals sign",
+                "QUOTATION \" - Double quote",
+                "TICK ' - Single quote/apostrophe",
+                "DOLLAR $ - Dollar sign",
+                "AND & - Ampersand",
+                "QUESTION ? - Question mark",
+                "EXCLAMATION ! - Exclamation mark",
+                "PERCENT % - Percent sign",
+                "STAR * - Asterisk",
+                "PLUS + - Plus sign",
+                "MINUS - - Minus/dash",
+                "DOT . - Period/dot",
+                "COLON : - Colon",
+                "SEMICOLON ; - Semicolon",
+                "COMMA , - Comma",
+                "HASHTAG # - Hash/pound sign",
+                "GREATER > / SMALLER < - Angle brackets",
+                "BAR | - Pipe/vertical bar",
+                "ELEVATE ^ - Caret",
+                "ROUND ~ - Tilde",
+            ],
+            "📝 TEXT & NAVIGATION": [
+                "TYPE [TEXT] - Type dictated text",
+                "GO TO START/TOP - Jump to document start",
+                "GO TO END/BOTTOM - Jump to document end",
+                "PAGE UP - Page up",
+                "PAGE DOWN - Page down",
+                "SELECT LINE - Select current line",
+                "SELECT WORD - Select current word",
+                "DELETE WORD - Delete previous word",
+                "BACKSPACE [N] - Backspace N times",
+            ],
+            "🚀 SYSTEM": [
+                "OPEN SHELL / START SHELL - Open cmd.exe",
+                "OPEN EXPLORER / START EXPLORER - Open file explorer",
+                "AGENT STOP - Pause command recognition",
+                "AGENT START - Resume command recognition",
+            ],
+            "❌ HIDE OVERLAYS": [
+                "HIDE NUMBERS/GRID/ROWS - Close overlay",
+                "HIDE COMMANDS - Close this help",
+            ],
+        }
+
+        # Display commands by category
+        for category, cmd_list in commands.items():
+            # Category header
+            header = tk.Label(
+                scrollable_frame,
+                text=category,
+                font=("Arial", 14, "bold"),
+                bg="#2a2a2a",
+                fg="#00ccff",
+                anchor="w",
+                padx=20,
+                pady=8
+            )
+            header.pack(fill="x", padx=20, pady=(10, 0))
+
+            # Commands in category
+            for cmd in cmd_list:
+                label = tk.Label(
+                    scrollable_frame,
+                    text="  • " + cmd,
+                    font=("Consolas", 11),
+                    bg="#1a1a1a",
+                    fg="#cccccc",
+                    anchor="w",
+                    padx=30,
+                    pady=3
+                )
+                label.pack(fill="x", padx=20)
+
+        # Footer
+        footer = tk.Label(
+            scrollable_frame,
+            text="Say 'HIDE COMMANDS' to close this help",
+            font=("Arial", 12, "italic"),
+            bg="#1a1a1a",
+            fg="#888888",
+            pady=30
+        )
+        footer.pack()
+
+        # Pack canvas and scrollbar
+        self.canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        self.mode = "commands"
+        self.is_visible = True
+        print("✓ Commands overlay shown")
+        print("  Say 'HIDE COMMANDS' to close")
+
     def _cleanup_impl(self):
         """Clean up overlay resources - runs on GUI thread."""
         if self.canvas:
@@ -806,6 +1120,9 @@ class VoiceCommandProcessor:
         self.wake_word = config.get("wake_word", "word", default="agent").lower()
         self.wake_word_enabled = config.get("wake_word", "enabled", default=True)
         self.listening_for_command = False
+
+        # Agent active/stopped state
+        self.agent_active = True  # Agent starts active, can be paused with "agent stop"
 
         # Command tracking for exponential movement
         self.last_command = None
@@ -838,6 +1155,10 @@ class VoiceCommandProcessor:
             else:
                 self.logger.warning("Custom commands enabled but no commands defined")
 
+        # Load number mappings for robust speech recognition
+        self.number_mappings = self._load_number_mappings()
+        self.logger.info(f"Loaded {len(self.number_mappings)} number word mappings")
+
     def _get_screen_size(self):
         """Get screen dimensions using tkinter."""
         try:
@@ -853,6 +1174,25 @@ class VoiceCommandProcessor:
             self.logger.warning(f"Could not get screen size: {e}, using defaults")
             return 1920, 1080  # Default fallback
 
+    def _load_number_mappings(self) -> dict:
+        """Load number word mappings from number_mappings.yaml."""
+        try:
+            mappings_file = os.path.join(os.path.dirname(__file__), "number_mappings.yaml")
+            with open(mappings_file, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+                return data.get('number_words', {})
+        except FileNotFoundError:
+            self.logger.warning("number_mappings.yaml not found, using default mappings")
+            # Fallback to basic mappings
+            return {
+                "zero": 0, "one": 1, "two": 2, "to": 2, "too": 2, "three": 3,
+                "four": 4, "for": 4, "five": 5, "six": 6, "seven": 7,
+                "eight": 8, "ate": 8, "nine": 9, "ten": 10
+            }
+        except Exception as e:
+            self.logger.error(f"Error loading number mappings: {e}")
+            return {}
+
     def _check_custom_commands(self, command: str) -> Optional[str]:
         """Check if command matches any custom commands and execute."""
         command_lower = command.lower()
@@ -862,8 +1202,10 @@ class VoiceCommandProcessor:
             if not trigger:
                 continue
 
-            # Check if command contains the trigger
-            if trigger in command_lower:
+            # Check if command contains the trigger as a whole word (not substring)
+            # Use word boundaries to avoid matching "debug" in "debugging"
+            pattern = r'\b' + re.escape(trigger) + r'\b'
+            if re.search(pattern, command_lower):
                 action = cmd_def.get("action", {})
                 action_type = action.get("type", "")
 
@@ -993,6 +1335,124 @@ class VoiceCommandProcessor:
                     pass
             raise e
 
+    def _extract_numbers(self, text: str) -> list:
+        """
+        Extract numbers from text, supporting both digits and word numbers.
+        Uses loaded number mappings including homophones (e.g., "to"->2, "for"->4).
+
+        Args:
+            text: Text containing numbers (e.g., "to left for right" or "2 left 4 right")
+
+        Returns:
+            List of integers found in the text
+        """
+        import re
+
+        numbers = []
+
+        # First try to find digit numbers
+        digit_numbers = re.findall(r"\d+", text)
+        if digit_numbers:
+            return [int(n) for n in digit_numbers]
+
+        # If no digits, try word numbers (including homophones)
+        words = text.lower().split()
+        for word in words:
+            if word in self.number_mappings:
+                numbers.append(self.number_mappings[word])
+
+        return numbers
+
+    def _contains_numbers(self, text: str) -> bool:
+        """
+        Check if text contains numbers (either digits or number words).
+
+        Args:
+            text: Text to check
+
+        Returns:
+            True if text contains digits or number words from mappings
+        """
+        # Check for digit characters
+        if any(c.isdigit() for c in text):
+            return True
+
+        # Check for number words
+        words = text.lower().split()
+        for word in words:
+            if word in self.number_mappings:
+                return True
+
+        return False
+
+    def _is_lone_number(self, text: str) -> bool:
+        """
+        Check if text is a single number (digit or number word).
+
+        Args:
+            text: Text to check
+
+        Returns:
+            True if text is just a single number
+        """
+        text = text.strip()
+
+        # Check if it's a digit number
+        if text.isdigit():
+            return True
+
+        # Check if it's a single number word
+        if text.lower() in self.number_mappings:
+            return True
+
+        return False
+
+    def _parse_number(self, text: str) -> Optional[int]:
+        """
+        Parse a single number from text (digit or number word).
+
+        Args:
+            text: Text containing a single number
+
+        Returns:
+            Integer value or None if not a valid number
+        """
+        text = text.strip()
+
+        # Try parsing as digit
+        if text.isdigit():
+            return int(text)
+
+        # Try parsing as number word
+        if text.lower() in self.number_mappings:
+            return self.number_mappings[text.lower()]
+
+        return None
+
+    def _filter_ignored_words(self, text: str) -> str:
+        """
+        Remove ignored filler/politeness words from text.
+
+        Args:
+            text: Original text
+
+        Returns:
+            Filtered text with ignored words removed
+        """
+        # List of words to ignore (politeness, filler words)
+        ignored_words = ["thank", "you", "thanks", "please"]
+
+        words = text.split()
+        filtered_words = []
+
+        for word in words:
+            # Strip punctuation from word for comparison
+            word_clean = word.strip(".,!?;:").lower()
+            if word_clean not in ignored_words:
+                filtered_words.append(word)
+
+        return " ".join(filtered_words).strip()
+
     def process_command(self, text: str) -> Optional[str]:
         """
         Process voice command or return text for typing.
@@ -1006,34 +1466,41 @@ class VoiceCommandProcessor:
         if not text:
             return None
 
-        text_lower = text.lower().strip()
-
-        # Check for wake word
-        if self.wake_word in text_lower and self.wake_word_enabled:
-            self.listening_for_command = True
-            self.logger.info(f"Wake word '{self.wake_word}' detected!")
-            print("🎯 Wake word detected! Listening for command...")
-
-            # Extract command after wake word
-            wake_word_index = text_lower.index(self.wake_word)
-            command_text = text_lower[wake_word_index + len(self.wake_word) :].strip()
-            # Strip leading punctuation (commas, periods, etc.)
-            command_text = command_text.lstrip(",.!?;: ")
-
-            if command_text:
-                return self._execute_command(command_text)
+        # Filter out ignored words (thank, you, etc.)
+        text = self._filter_ignored_words(text)
+        if not text:  # If all words were filtered out, ignore
             return None
 
-        # If we're in command mode but no wake word, treat as command
-        if self.listening_for_command:
-            return self._execute_command(text_lower)
+        text_lower = text.lower().strip()
 
-        # Otherwise, return text for normal typing
-        return None
+        # Check for agent stop/start commands (these always work)
+        if "agent stop" in text_lower:
+            self.agent_active = False
+            print("⏸️  Agent STOPPED - Commands are now paused")
+            print("   Say 'AGENT START' to resume command execution")
+            return None
 
-    def _execute_command(self, command: str) -> Optional[str]:
+        if "agent start" in text_lower:
+            self.agent_active = True
+            print("▶️  Agent STARTED - Commands are now active")
+            return None
+
+        # If agent is stopped, ignore all speech (for when talking to someone)
+        if not self.agent_active:
+            return None
+
+        # Agent is active - try to execute as command
+        return self._execute_command(text_lower, original_text=text)
+
+    def _execute_command(self, command: str, original_text: str = None) -> Optional[str]:
         """Execute a voice command."""
         command = command.strip()
+        # Strip trailing punctuation that Whisper adds
+        command = command.rstrip(".,!?;:")
+        # Also remove commas within the command (e.g., "hide, rose" -> "hide rose")
+        command = command.replace(",", " ").replace("  ", " ")
+        if original_text is None:
+            original_text = command
 
         # Check custom commands first (before built-in commands)
         if self.custom_commands_enabled:
@@ -1041,17 +1508,159 @@ class VoiceCommandProcessor:
             if custom_result is not None:
                 return custom_result
 
+        # Direct key commands (short versions)
+        if command == "enter":
+            return self._handle_key_press_command(keyboard.Key.enter, "Enter")
+        elif command == "space":
+            return self._handle_key_press_command(keyboard.Key.space, "Space")
+        elif command == "delete":
+            return self._handle_key_press_command(keyboard.Key.backspace, "Delete")
+        elif command == "tab":
+            return self._handle_key_press_command(keyboard.Key.tab, "Tab")
+        elif command == "cycle":
+            return self._handle_shift_tab_command()
+        elif command == "escape":
+            return self._handle_key_press_command(keyboard.Key.esc, "Escape")
+        elif command == "start menu" or command == "windows key":
+            return self._handle_key_press_command(keyboard.Key.cmd, "Windows Key")
+
+        # Symbol typing commands
+        elif command == "slash":
+            return self._handle_type_symbol("/", "slash")
+        elif command == "backslash":
+            return self._handle_type_symbol("\\", "backslash")
+        elif command == "open" or command == "open paren":
+            return self._handle_type_symbol("(", "open parenthesis")
+        elif command == "close" or command == "close paren":
+            return self._handle_type_symbol(")", "close parenthesis")
+        elif command == "curly open" or command == "open curly":
+            return self._handle_type_symbol("{", "open curly brace")
+        elif command == "curly close" or command == "close curly":
+            return self._handle_type_symbol("}", "close curly brace")
+        elif command == "equal" or command == "equals":
+            return self._handle_type_symbol("=", "equal")
+        elif command == "quotation" or command == "quote":
+            return self._handle_type_symbol('"', "quotation")
+        elif command == "tick" or command == "apostrophe":
+            return self._handle_type_symbol("'", "tick")
+        elif command == "dollar":
+            return self._handle_type_symbol("$", "dollar")
+        elif command == "and" or command == "ampersand":
+            return self._handle_type_symbol("&", "ampersand")
+        elif command == "array open" or command == "open bracket":
+            return self._handle_type_symbol("[", "open bracket")
+        elif command == "array close" or command == "close bracket":
+            return self._handle_type_symbol("]", "close bracket")
+        elif command == "question":
+            return self._handle_type_symbol("?", "question mark")
+        elif command == "exclamation":
+            return self._handle_type_symbol("!", "exclamation")
+        elif command == "percent":
+            return self._handle_type_symbol("%", "percent")
+        elif command == "star" or command == "asterisk":
+            return self._handle_type_symbol("*", "star")
+        elif command == "plus":
+            return self._handle_type_symbol("+", "plus")
+        elif command == "minus" or command == "dash":
+            return self._handle_type_symbol("-", "minus")
+        elif command == "dot" or command == "period":
+            return self._handle_type_symbol(".", "dot")
+        elif command == "colon":
+            return self._handle_type_symbol(":", "colon")
+        elif command == "semicolon":
+            return self._handle_type_symbol(";", "semicolon")
+        elif command == "comma":
+            return self._handle_type_symbol(",", "comma")
+        elif command == "hashtag" or command == "hash" or command == "pound":
+            return self._handle_type_symbol("#", "hashtag")
+        elif command == "greater" or command == "greater than":
+            return self._handle_type_symbol(">", "greater than")
+        elif command == "smaller" or command == "less than":
+            return self._handle_type_symbol("<", "less than")
+        elif command == "bar" or command == "pipe":
+            return self._handle_type_symbol("|", "pipe")
+        elif command == "elevate" or command == "caret":
+            return self._handle_type_symbol("^", "caret")
+        elif command == "round" or command == "tilde":
+            return self._handle_type_symbol("~", "tilde")
+
+        # Quick keyboard shortcuts
+        elif command == "copy":
+            return self._handle_clipboard_command("copy")
+        elif command == "paste":
+            return self._handle_clipboard_command("paste")
+        elif command == "cut":
+            return self._handle_clipboard_command("cut")
+        elif command == "select all":
+            return self._handle_select_command("select all")
+        elif command == "switch":
+            return self._handle_switch_window_command("next")
+        elif command == "save":
+            return self._handle_save_command()
+        elif command == "find":
+            return self._handle_find_command()
+        elif command == "close":
+            return self._handle_close_command()
+        elif command == "open shell" or command == "start shell":
+            return self._handle_open_shell_command()
+        elif command == "open explorer" or command == "start explorer":
+            return self._handle_open_explorer_command()
+        elif command == "undo":
+            return self._handle_undo_redo_command("undo")
+        elif command == "redo":
+            return self._handle_undo_redo_command("redo")
+
+        # Show WORD - switch to window with WORD in title
+        elif command.startswith("show ") and not command.startswith("show windows") and not command.startswith("show numbers") and not command.startswith("show grid") and not command.startswith("show rows"):
+            return self._handle_show_word_command(command)
+
+        # Show rows - display numbered rows (with common speech recognition alternatives)
+        elif command in ["rows", "show rows", "roles", "rose"]:
+            return self._handle_show_rows_command()
+
+        # NUMBER to NUMBER - select rows
+        elif " to " in command and self._contains_numbers(command):
+            return self._handle_number_to_number_command(command)
+
+        # Window management commands (check BEFORE mouse movement)
+        elif "move window left" in command or "snap left" in command:
+            return self._handle_snap_window_command("left")
+
+        elif "move window right" in command or "snap right" in command:
+            return self._handle_snap_window_command("right")
+
+        elif "maximize" in command or "maximise" in command:
+            return self._handle_maximize_command()
+
+        elif "minimize" in command or "minimise" in command:
+            return self._handle_minimize_command()
+
         # Mouse movement commands
-        if command.startswith("move"):
+        elif command.startswith("move"):
             return self._handle_move_command(command)
 
+        # Right click command
+        elif command == "right click":
+            return self._handle_right_click_command()
+
         # Click numbered element (check BEFORE regular click commands)
-        elif command.startswith("click") and any(digit in command for digit in "0123456789"):
+        elif command.startswith("click") and self._contains_numbers(command):
             return self._handle_click_number_command(command)
 
-        # Regular click commands (left/right)
-        elif command.startswith("click"):
+        # Regular click command (just "click" = left click)
+        elif command == "click":
             return self._handle_click_command(command)
+
+        # X left Y right - arrange two windows side by side
+        elif "left" in command and "right" in command and self._contains_numbers(command):
+            return self._handle_split_windows_command(command)
+
+        # Lone number - context dependent on overlay mode
+        elif self._is_lone_number(command) and self.overlay and self.overlay.is_visible:
+            if self.overlay.mode in ["grid", "grid_zoomed"]:
+                return self._handle_grid_number_command(command)
+            elif self.overlay.mode == "windows":
+                return self._handle_window_number_command(command)
 
         # Type command
         elif command.startswith("type"):
@@ -1060,6 +1669,10 @@ class VoiceCommandProcessor:
         # Window switching commands
         elif "switch window" in command:
             return self._handle_switch_window_command(command)
+
+        # Switch to numbered window from overlay (just "SWITCH [number]")
+        elif command.startswith("switch") and self._contains_numbers(command):
+            return self._handle_switch_number_command(command)
 
         # Tab switching commands
         elif "switch tab" in command:
@@ -1093,18 +1706,31 @@ class VoiceCommandProcessor:
         elif "page" in command:
             return self._handle_page_command(command)
 
+        # Arrow key commands (must be checked before window/mouse commands)
+        elif command == "left":
+            return self._handle_arrow_key_command("left")
+        elif command == "right":
+            return self._handle_arrow_key_command("right")
+        elif command == "up":
+            return self._handle_arrow_key_command("up")
+        elif command == "down":
+            return self._handle_arrow_key_command("down")
+
         # Window enumeration
-        elif "show windows" in command or "list windows" in command:
+        elif command == "windows" or "show windows" in command or "list windows" in command:
             return self._handle_show_windows_command()
 
         # Overlay commands for screen segmentation
-        elif "show numbers" in command or "show elements" in command:
+        elif command == "numbers" or "show numbers" in command or "show elements" in command:
             return self._handle_show_numbers_command()
 
-        elif "show grid" in command:
+        elif command == "grid":
             return self._handle_show_grid_command()
 
-        elif "refine grid" in command:
+        elif command == "commands" or "show commands" in command or "help" in command:
+            return self._handle_show_commands_command()
+
+        elif command.startswith("refine") and self._contains_numbers(command):
             return self._handle_refine_grid_command(command)
 
         # Hide overlay (robust matching for speech recognition errors)
@@ -1113,8 +1739,25 @@ class VoiceCommandProcessor:
             or "height numbers" in command  # Common misrecognition
             or "hide grid" in command
             or "height grid" in command  # Common misrecognition
+            or "hide windows" in command
+            or "height windows" in command  # Common misrecognition
+            or "hide rows" in command
+            or "hide rose" in command  # "rows" transcribed as "rose"
+            or "hide roles" in command  # "rows" transcribed as "roles"
+            or "height rows" in command  # Common misrecognition
+            or "height rose" in command  # Common misrecognition
+            or "height roles" in command  # Common misrecognition
+            or "hide commands" in command
+            or "height commands" in command  # Common misrecognition
+            or "hide help" in command
             or "close overlay" in command
             or "close numbers" in command
+            or "close windows" in command
+            or "close rows" in command
+            or "close rose" in command  # "rows" transcribed as "rose"
+            or "close roles" in command  # "rows" transcribed as "roles"
+            or "close commands" in command
+            or "close help" in command
             or "remove overlay" in command
             or "clear overlay" in command
             or "hide overlay" in command
@@ -1122,41 +1765,29 @@ class VoiceCommandProcessor:
         ):
             return self._handle_hide_overlay_command()
 
-        # Window management commands
-        elif "maximize" in command or "maximise" in command:
-            return self._handle_maximize_command()
-
-        elif "minimize" in command or "minimise" in command:
-            return self._handle_minimize_command()
-
-        elif "move window left" in command or "snap left" in command:
-            return self._handle_snap_window_command("left")
-
-        elif "move window right" in command or "snap right" in command:
-            return self._handle_snap_window_command("right")
-
-        # Unknown command
+        # Unknown command - ignore it (don't type)
         else:
-            self.logger.warning(f"Unknown command: {command}")
-            print(f"⚠ Unknown command: {command}")
-            self.listening_for_command = False
+            self.logger.info(f"No command detected, ignoring: {command}")
             return None
 
     def _handle_move_command(self, command: str) -> None:
-        """Handle mouse movement commands with exponential scaling."""
+        """Handle move commands - left/right snap windows, up/down move mouse."""
         # Parse direction
-        if "up" in command:
+        if "left" in command:
+            # Move left = snap window to left
+            return self._handle_snap_window_command("left")
+        elif "right" in command:
+            # Move right = snap window to right
+            return self._handle_snap_window_command("right")
+        elif "up" in command:
             direction = "up"
         elif "down" in command:
             direction = "down"
-        elif "left" in command:
-            direction = "left"
-        elif "right" in command:
-            direction = "right"
         else:
             print("⚠ Invalid move command. Use: MOVE UP/DOWN/LEFT/RIGHT")
             return None
 
+        # Only mouse movement for up/down now
         # Calculate exponential step size
         if self.last_command == f"move {direction}":
             self.command_count += 1
@@ -1177,10 +1808,6 @@ class VoiceCommandProcessor:
             new_y = max(0, current_y - step_size)
         elif direction == "down":
             new_y = min(self.screen_height - 1, current_y + step_size)
-        elif direction == "left":
-            new_x = max(0, current_x - step_size)
-        elif direction == "right":
-            new_x = min(self.screen_width - 1, current_x + step_size)
 
         # Move mouse
         self.mouse_controller.position = (new_x, new_y)
@@ -1192,29 +1819,131 @@ class VoiceCommandProcessor:
         )
 
     def _handle_click_command(self, command: str) -> None:
-        """Handle mouse click commands and special key clicks."""
-        if "left" in command:
-            self.mouse_controller.click(mouse.Button.left, 1)
-            print("🖱️  Left click")
-        elif "right" in command:
-            self.mouse_controller.click(mouse.Button.right, 1)
-            print("🖱️  Right click")
-        elif "enter" in command or "return" in command:
-            print("⏎  Pressing Enter...")
-            self.keyboard_controller.press(keyboard.Key.enter)
-            self.keyboard_controller.release(keyboard.Key.enter)
-            print("✓ Enter pressed")
-        elif "space" in command:
-            print("␣  Pressing Space...")
-            self.keyboard_controller.press(keyboard.Key.space)
-            self.keyboard_controller.release(keyboard.Key.space)
-            print("✓ Space pressed")
-        else:
-            print("⚠ Invalid click command. Use: CLICK LEFT/RIGHT/ENTER/SPACE")
+        """Handle mouse click commands."""
+        # Just "click" = left click
+        self.mouse_controller.click(mouse.Button.left, 1)
+        print("🖱️  Left click")
 
         # Reset command tracking after click
         self.last_command = None
         self.command_count = 0
+
+    def _handle_right_click_command(self) -> None:
+        """Handle right click command."""
+        self.mouse_controller.click(mouse.Button.right, 1)
+        print("🖱️  Right click")
+
+        # Reset command tracking after click
+        self.last_command = None
+        self.command_count = 0
+
+    def _handle_grid_number_command(self, command: str) -> None:
+        """Handle lone number in grid mode - move mouse to that grid cell."""
+        number = self._parse_number(command)
+        if number is None:
+            print(f"⚠ Invalid number: {command}")
+        elif number in self.overlay.elements:
+            x, y, _, _ = self.overlay.elements[number]
+            # Move mouse to grid cell
+            self.mouse_controller.position = (x, y)
+            print(f"🖱️  Moved to grid cell [{number}] at ({x}, {y})")
+        else:
+            print(f"⚠ Grid cell {number} not found")
+
+        self.last_command = None
+        self.command_count = 0
+
+    def _handle_window_number_command(self, command: str) -> None:
+        """Handle lone number in windows mode - switch to and maximize that window."""
+        number = self._parse_number(command)
+        if number is None:
+            print(f"⚠ Invalid number: {command}")
+        elif self.window_list and number in self.window_list:
+            window = self.window_list[number]
+            title = window.window_text()
+            print(f"🪟 Switching to window [{number}]: {title}")
+
+            # Switch to the window
+            self._switch_to_window(window, f"[{number}] {title}")
+
+            # Maximize the window
+            time.sleep(0.2)  # Wait for window switch to complete
+            with self.keyboard_controller.pressed(keyboard.Key.cmd):
+                self.keyboard_controller.press(keyboard.Key.up)
+                self.keyboard_controller.release(keyboard.Key.up)
+            print(f"⬆️  Maximized window [{number}]")
+        else:
+            print(f"⚠ Window {number} not found. Use 'SHOW WINDOWS' first.")
+
+        self.last_command = None
+        self.command_count = 0
+
+    def _handle_split_windows_command(self, command: str) -> None:
+        """Handle 'X left Y right' command to arrange two windows side by side."""
+        # Extract numbers from command (supports both digits and words)
+        numbers = self._extract_numbers(command)
+        if len(numbers) < 2:
+            print("⚠ Need two window numbers. Use: [number] LEFT [number] RIGHT")
+            print("  Example: TWO LEFT FOUR RIGHT or 2 LEFT 4 RIGHT")
+            return None
+
+        left_window_num = numbers[0]
+        right_window_num = numbers[1]
+
+        if not self.window_list:
+            print("⚠ No window list. Use 'SHOW WINDOWS' first.")
+            return None
+
+        if left_window_num not in self.window_list:
+            print(f"⚠ Window {left_window_num} not found")
+            return None
+
+        if right_window_num not in self.window_list:
+            print(f"⚠ Window {right_window_num} not found")
+            return None
+
+        print(f"📐 Arranging windows: [{left_window_num}] left, [{right_window_num}] right")
+
+        # Switch to left window and snap left
+        left_window = self.window_list[left_window_num]
+        left_title = left_window.window_text()
+        print(f"  ⬅️  Moving [{left_window_num}] {left_title} to left half")
+        self._switch_to_window(left_window, f"[{left_window_num}] {left_title}")
+        time.sleep(0.2)
+
+        # Snap to left
+        with self.keyboard_controller.pressed(keyboard.Key.cmd):
+            self.keyboard_controller.press(keyboard.Key.left)
+            self.keyboard_controller.release(keyboard.Key.left)
+        time.sleep(0.15)
+
+        # Press Enter to dismiss Snap Assist
+        self.keyboard_controller.press(keyboard.Key.enter)
+        self.keyboard_controller.release(keyboard.Key.enter)
+        time.sleep(0.2)
+
+        # Switch to right window and snap right
+        right_window = self.window_list[right_window_num]
+        right_title = right_window.window_text()
+        print(f"  ➡️  Moving [{right_window_num}] {right_title} to right half")
+        self._switch_to_window(right_window, f"[{right_window_num}] {right_title}")
+        time.sleep(0.2)
+
+        # Snap to right
+        with self.keyboard_controller.pressed(keyboard.Key.cmd):
+            self.keyboard_controller.press(keyboard.Key.right)
+            self.keyboard_controller.release(keyboard.Key.right)
+        time.sleep(0.15)
+
+        # Press Enter to dismiss Snap Assist
+        self.keyboard_controller.press(keyboard.Key.enter)
+        self.keyboard_controller.release(keyboard.Key.enter)
+
+        print(f"✓ Windows arranged: [{left_window_num}] left | [{right_window_num}] right")
+
+        self.last_command = None
+        self.command_count = 0
+        return None
 
     def _handle_type_command(self, command: str) -> Optional[str]:
         """Handle TYPE command to dictate text."""
@@ -1257,27 +1986,7 @@ class VoiceCommandProcessor:
                         window = self.window_list[number]
                         title = window.window_text()
                         print(f"🪟 Switching to window [{number}]: {title}")
-
-                        # Use multiple methods to ensure window gets focus
-                        try:
-                            # Restore if minimized
-                            if window.is_minimized():
-                                window.restore()
-                            # Bring to front and activate
-                            window.set_focus()
-                            time.sleep(0.1)  # Small delay
-                            window.wrapper_object().set_focus()  # Try again with wrapper
-                        except Exception:
-                            # Fallback: use Windows API directly
-                            try:
-                                import ctypes
-
-                                hwnd = window.handle
-                                ctypes.windll.user32.SetForegroundWindow(hwnd)
-                            except Exception:
-                                pass
-
-                        print(f"✓ Switched to window [{number}]")
+                        self._switch_to_window(window, f"[{number}] {title}")
                     except Exception as e:
                         self.logger.error(f"Failed to switch to window {number}: {e}")
                         print(f"⚠ Failed to switch to window {number}: {e}")
@@ -1320,6 +2029,33 @@ class VoiceCommandProcessor:
         # Reset command tracking
         self.last_command = None
         self.command_count = 0
+
+    def _handle_switch_number_command(self, command: str) -> None:
+        """Handle SWITCH [number] command to switch to numbered window from overlay."""
+        # Extract number from command (supports both digits and words)
+        numbers = self._extract_numbers(command)
+        if not numbers:
+            print("⚠ No number found in switch command")
+            return None
+
+        number = numbers[0]
+
+        # Check if we have a numbered window list from SHOW WINDOWS
+        if self.window_list and number in self.window_list:
+            try:
+                window = self.window_list[number]
+                title = window.window_text()
+                print(f"🪟 Switching to window [{number}]: {title}")
+                self._switch_to_window(window, f"[{number}] {title}")
+            except Exception as e:
+                self.logger.error(f"Failed to switch to window {number}: {e}")
+                print(f"⚠ Failed to switch to window {number}: {e}")
+        else:
+            print(f"⚠ Window {number} not found. Use 'SHOW WINDOWS' first.")
+
+        self.last_command = None
+        self.command_count = 0
+        return None
 
     def _handle_select_command(self, command: str) -> None:
         """Handle text selection commands."""
@@ -1493,6 +2229,26 @@ class VoiceCommandProcessor:
         self.last_command = None
         self.command_count = 0
 
+    def _handle_arrow_key_command(self, direction: str) -> None:
+        """Handle arrow key commands (left, right, up, down)."""
+        direction_map = {
+            "left": (keyboard.Key.left, "⬅️"),
+            "right": (keyboard.Key.right, "➡️"),
+            "up": (keyboard.Key.up, "⬆️"),
+            "down": (keyboard.Key.down, "⬇️")
+        }
+
+        if direction in direction_map:
+            key, emoji = direction_map[direction]
+            print(f"{emoji} Pressing {direction} arrow key...")
+            self.keyboard_controller.press(key)
+            self.keyboard_controller.release(key)
+        else:
+            print(f"⚠ Unknown arrow direction: {direction}")
+
+        self.last_command = None
+        self.command_count = 0
+
     def _handle_show_numbers_command(self) -> None:
         """Handle SHOW NUMBERS command to display numbered overlay."""
         print("🔢 Showing numbered overlay...")
@@ -1510,18 +2266,24 @@ class VoiceCommandProcessor:
         self.command_count = 0
         return None
 
-    def _handle_refine_grid_command(self, command: str) -> None:
-        """Handle REFINE GRID [number] command to zoom into a specific cell."""
-        # Extract number from command
-        import re
+    def _handle_show_commands_command(self) -> None:
+        """Handle SHOW COMMANDS command to display available commands overlay."""
+        print("📋 Showing available commands...")
+        self.overlay.show_commands()
+        self.last_command = None
+        self.command_count = 0
+        return None
 
-        numbers = re.findall(r"\d+", command)
+    def _handle_refine_grid_command(self, command: str) -> None:
+        """Handle REFINE [number] command to zoom into a specific cell."""
+        # Extract number from command (supports both digits and words)
+        numbers = self._extract_numbers(command)
         if not numbers:
-            print("⚠ No cell number specified. Use: REFINE GRID [number]")
-            print("  Example: AGENT REFINE GRID 5")
+            print("⚠ No cell number specified. Use: REFINE [number]")
+            print("  Example: REFINE FIVE or REFINE 5")
             return None
 
-        cell_number = int(numbers[0])
+        cell_number = numbers[0]
         print(f"🔍 Refining grid - zooming into cell {cell_number}...")
         self.overlay.refine_grid_cell(cell_number)
         self.last_command = None
@@ -1573,33 +2335,26 @@ class VoiceCommandProcessor:
         return None
 
     def _handle_snap_window_command(self, direction: str) -> None:
-        """Handle MOVE WINDOW LEFT/RIGHT command to snap window to half screen."""
+        """Handle MOVE WINDOW LEFT/RIGHT command to snap window to half screen (Windows)."""
         if direction == "left":
             print("⬅️  Snapping window to left half...")
-            # Windows: Win+Left
-            if platform.system() == "Windows":
-                with self.keyboard_controller.pressed(keyboard.Key.cmd):
-                    self.keyboard_controller.press(keyboard.Key.left)
-                    self.keyboard_controller.release(keyboard.Key.left)
-            else:
-                # On macOS, there's no native snap, but we can try Win+Left anyway
-                with self.keyboard_controller.pressed(keyboard.Key.cmd):
-                    self.keyboard_controller.press(keyboard.Key.left)
-                    self.keyboard_controller.release(keyboard.Key.left)
+            with self.keyboard_controller.pressed(keyboard.Key.cmd):
+                self.keyboard_controller.press(keyboard.Key.left)
+                self.keyboard_controller.release(keyboard.Key.left)
             print("✓ Window snapped to left")
         elif direction == "right":
             print("➡️  Snapping window to right half...")
-            # Windows: Win+Right
-            if platform.system() == "Windows":
-                with self.keyboard_controller.pressed(keyboard.Key.cmd):
-                    self.keyboard_controller.press(keyboard.Key.right)
-                    self.keyboard_controller.release(keyboard.Key.right)
-            else:
-                # On macOS, there's no native snap, but we can try Win+Right anyway
-                with self.keyboard_controller.pressed(keyboard.Key.cmd):
-                    self.keyboard_controller.press(keyboard.Key.right)
-                    self.keyboard_controller.release(keyboard.Key.right)
+            with self.keyboard_controller.pressed(keyboard.Key.cmd):
+                self.keyboard_controller.press(keyboard.Key.right)
+                self.keyboard_controller.release(keyboard.Key.right)
             print("✓ Window snapped to right")
+
+        # Press Enter to dismiss Windows Snap Assist overlay
+        time.sleep(0.1)
+        self.keyboard_controller.press(keyboard.Key.enter)
+        self.keyboard_controller.release(keyboard.Key.enter)
+        time.sleep(0.05)
+
         self.last_command = None
         self.command_count = 0
         return None
@@ -1609,45 +2364,46 @@ class VoiceCommandProcessor:
         print("🪟 Enumerating windows...")
         self.window_list.clear()
 
-        if platform.system() == "Windows" and PYWINAUTO_AVAILABLE:
-            try:
-                from pywinauto import Desktop
+        if not PYWINAUTO_AVAILABLE:
+            print("⚠ pywinauto required. Install with: pip install pywinauto")
+            return None
 
-                desktop = Desktop(backend="uia")
-                windows = desktop.windows()
+        try:
+            from pywinauto import Desktop
 
-                # Filter visible windows with titles
-                numbered_windows = {}
-                idx = 1
-                for window in windows:
-                    try:
-                        if window.is_visible():
-                            title = window.window_text()
-                            # Skip empty titles and certain system windows
-                            if (
-                                title
-                                and title.strip()
-                                and not title.startswith("MSCTFIME")
-                                and title != "Program Manager"
-                            ):
-                                self.window_list[idx] = window
-                                numbered_windows[idx] = (window, title)
-                                idx += 1
-                    except Exception:
-                        continue
+            desktop = Desktop(backend="uia")
+            windows = desktop.windows()
 
-                # Display windows in overlay
-                if numbered_windows:
-                    print(f"✓ Found {len(numbered_windows)} windows")
-                    self.overlay.show_windows(numbered_windows)
-                else:
-                    print("⚠ No windows found")
+            # Filter visible windows with titles
+            numbered_windows = {}
+            idx = 1
+            for window in windows:
+                try:
+                    if window.is_visible():
+                        title = window.window_text()
+                        # Skip empty titles and certain system windows
+                        if (
+                            title
+                            and title.strip()
+                            and not title.startswith("MSCTFIME")
+                            and title != "Program Manager"
+                        ):
+                            self.window_list[idx] = window
+                            numbered_windows[idx] = (window, title)
+                            idx += 1
+                except Exception:
+                    continue
 
-            except Exception as e:
-                self.logger.error(f"Failed to enumerate windows: {e}")
-                print(f"⚠ Failed to enumerate windows: {e}")
-        else:
-            print("⚠ Window enumeration only supported on Windows with pywinauto")
+            # Display windows in overlay
+            if numbered_windows:
+                print(f"✓ Found {len(numbered_windows)} windows")
+                self.overlay.show_windows(numbered_windows)
+            else:
+                print("⚠ No windows found")
+
+        except Exception as e:
+            self.logger.error(f"Failed to enumerate windows: {e}")
+            print(f"⚠ Failed to enumerate windows: {e}")
 
         self.last_command = None
         self.command_count = 0
@@ -1675,6 +2431,315 @@ class VoiceCommandProcessor:
 
         # Perform click
         self.overlay.click_element(element_number, button=button)
+
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+    def _handle_key_press_command(self, key, key_name: str) -> None:
+        """Handle direct key press commands."""
+        print(f"⌨️  Pressing {key_name}...")
+        self.keyboard_controller.press(key)
+        self.keyboard_controller.release(key)
+        print(f"✓ {key_name} pressed")
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+    def _handle_shift_tab_command(self) -> None:
+        """Handle CYCLE command (Shift+Tab)."""
+        print("🔄 Cycling backward (Shift+Tab)...")
+        with self.keyboard_controller.pressed(keyboard.Key.shift):
+            self.keyboard_controller.press(keyboard.Key.tab)
+            self.keyboard_controller.release(keyboard.Key.tab)
+        print("✓ Cycled backward")
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+    def _handle_type_symbol(self, symbol: str, symbol_name: str) -> None:
+        """
+        Handle typing a symbol character.
+
+        Args:
+            symbol: The symbol to type
+            symbol_name: Human-readable name for logging
+        """
+        print(f"⌨️  Typing {symbol_name}: {symbol}")
+        self.keyboard_controller.type(symbol)
+        print(f"✓ Typed {symbol_name}")
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+    def _handle_save_command(self) -> None:
+        """Handle SAVE command (Ctrl+S)."""
+        print("💾 Saving...")
+        with self.keyboard_controller.pressed(keyboard.Key.ctrl):
+            self.keyboard_controller.press("s")
+            self.keyboard_controller.release("s")
+        print("✓ Saved")
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+    def _handle_find_command(self) -> None:
+        """Handle FIND command (Ctrl+F)."""
+        print("🔍 Opening Find...")
+        with self.keyboard_controller.pressed(keyboard.Key.ctrl):
+            self.keyboard_controller.press("f")
+            self.keyboard_controller.release("f")
+        print("✓ Find opened")
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+    def _handle_close_command(self) -> None:
+        """Handle CLOSE command (Alt+F4)."""
+        print("❌ Closing window...")
+        with self.keyboard_controller.pressed(keyboard.Key.alt):
+            self.keyboard_controller.press(keyboard.Key.f4)
+            self.keyboard_controller.release(keyboard.Key.f4)
+        print("✓ Window closed")
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+    def _handle_open_shell_command(self) -> None:
+        """Handle OPEN SHELL command to start a new cmd window."""
+        print("🖥️  Opening new shell...")
+        try:
+            import subprocess
+            subprocess.Popen(["cmd.exe"], creationflags=subprocess.CREATE_NEW_CONSOLE)
+            print("✓ Shell opened")
+        except Exception as e:
+            self.logger.error(f"Failed to open shell: {e}")
+            print(f"⚠ Failed to open shell: {e}")
+
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+    def _handle_open_explorer_command(self) -> None:
+        """Handle OPEN EXPLORER command to open a new explorer window."""
+        print("📁 Opening new explorer window...")
+        try:
+            import subprocess
+            subprocess.Popen(["explorer.exe"])
+            print("✓ Explorer opened")
+        except Exception as e:
+            self.logger.error(f"Failed to open explorer: {e}")
+            print(f"⚠ Failed to open explorer: {e}")
+
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+    def _handle_show_word_command(self, command: str) -> None:
+        """Handle 'show WORD' command to switch to window with WORD in title."""
+        # Extract the word after "show "
+        word = command[5:].strip()
+        if not word:
+            print("⚠ No window name specified")
+            return None
+
+        print(f"🔍 Looking for window with '{word}' in title...")
+
+        if not PYWINAUTO_AVAILABLE:
+            print("⚠ pywinauto required. Install with: pip install pywinauto")
+            return None
+
+        try:
+            from pywinauto import Desktop
+
+            desktop = Desktop(backend="uia")
+            windows = desktop.windows()
+
+            # Find windows with matching title
+            matches = []
+            for window in windows:
+                try:
+                    if window.is_visible():
+                        title = window.window_text()
+                        if title and word.lower() in title.lower():
+                            matches.append((window, title))
+                except Exception:
+                    continue
+
+            if not matches:
+                print(f"⚠ No window found with '{word}' in title")
+                return None
+
+            if len(matches) == 1:
+                # Exact match - switch directly
+                window, title = matches[0]
+                print(f"✓ Found: {title}")
+                print(f"🪟 Switching to window...")
+                self._switch_to_window(window, title)
+            else:
+                # Multiple matches - show them
+                print(f"✓ Found {len(matches)} windows with '{word}':")
+                for i, (_, title) in enumerate(matches[:10], 1):
+                    print(f"  {i}. {title}")
+                # Switch to first match
+                window, title = matches[0]
+                self._switch_to_window(window, title)
+
+        except Exception as e:
+            self.logger.error(f"Failed to find window: {e}")
+            print(f"⚠ Failed to find window: {e}")
+
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+    def _switch_to_window(self, window, title: str) -> bool:
+        """
+        Robustly switch to a window using multiple methods and retries.
+
+        Returns True if successful, False otherwise.
+        """
+        if not PYWINAUTO_AVAILABLE:
+            return False
+
+        import ctypes
+
+        try:
+            hwnd = window.handle
+        except Exception as e:
+            self.logger.error(f"Failed to get window handle: {e}")
+            return False
+
+        # Try multiple methods to switch to the window
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                # Method 1: Restore if minimized
+                try:
+                    if window.is_minimized():
+                        window.restore()
+                        time.sleep(0.15)
+                except Exception as e:
+                    self.logger.debug(f"Restore failed: {e}")
+
+                # Method 2: Use Windows API - aggressive activation
+                try:
+                    # Show window (in case it's hidden)
+                    SW_SHOW = 5
+                    SW_RESTORE = 9
+                    ctypes.windll.user32.ShowWindow(hwnd, SW_RESTORE)
+                    time.sleep(0.05)
+
+                    # Bring window to top
+                    ctypes.windll.user32.BringWindowToTop(hwnd)
+                    time.sleep(0.05)
+
+                    # Make window topmost temporarily (more aggressive)
+                    SWP_NOSIZE = 0x0001
+                    SWP_NOMOVE = 0x0002
+                    SWP_SHOWWINDOW = 0x0040
+                    HWND_TOPMOST = -1
+                    HWND_NOTOPMOST = -2
+
+                    ctypes.windll.user32.SetWindowPos(
+                        hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_SHOWWINDOW
+                    )
+                    time.sleep(0.05)
+
+                    # Bring to foreground
+                    ctypes.windll.user32.SetForegroundWindow(hwnd)
+                    time.sleep(0.15)
+
+                    # Remove topmost flag
+                    ctypes.windll.user32.SetWindowPos(
+                        hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_SHOWWINDOW
+                    )
+                    time.sleep(0.05)
+
+                except Exception as e:
+                    self.logger.debug(f"Windows API method failed: {e}")
+                    # Method 3: Try pywinauto set_focus
+                    try:
+                        window.set_focus()
+                        time.sleep(0.1)
+                    except Exception as e2:
+                        self.logger.debug(f"set_focus failed: {e2}")
+
+                # Verify the window is now in foreground
+                try:
+                    foreground_hwnd = ctypes.windll.user32.GetForegroundWindow()
+                    if foreground_hwnd == hwnd:
+                        print(f"✓ Switched to '{title}'")
+                        return True
+                except Exception:
+                    pass
+
+                # If verification failed but no exception, maybe it worked
+                if attempt == max_attempts - 1:
+                    print(f"✓ Attempted to switch to '{title}'")
+                    return True
+
+            except Exception as e:
+                self.logger.warning(f"Switch attempt {attempt + 1} failed: {e}")
+                if attempt < max_attempts - 1:
+                    time.sleep(0.2)  # Wait before retry
+                else:
+                    print(f"⚠ Failed to switch to window after {max_attempts} attempts: {e}")
+                    return False
+
+        return False
+
+    def _handle_show_rows_command(self) -> None:
+        """Handle 'show rows' command to display numbered rows on screen."""
+        if not PYAUTOGUI_AVAILABLE:
+            print("⚠ PyAutoGUI not available. Install with: pip install pyautogui")
+            return None
+
+        print("📊 Showing numbered rows...")
+        # Use overlay to show rows
+        self.overlay.show_rows()
+        self.last_command = None
+        self.command_count = 0
+        return None
+
+    def _handle_number_to_number_command(self, command: str) -> None:
+        """Handle 'NUMBER to NUMBER' command to select rows."""
+        # Extract numbers from command
+        import re
+        numbers = re.findall(r"\d+", command)
+        if len(numbers) < 2:
+            print("⚠ Need two numbers for row selection (e.g., '5 to 10')")
+            return None
+
+        start_row = int(numbers[0])
+        end_row = int(numbers[1])
+
+        print(f"📝 Selecting rows {start_row} to {end_row}...")
+
+        # Calculate clicks needed
+        # First click on start row, then shift+click on end row
+        if not self.overlay.is_visible or self.overlay.mode != "rows":
+            print("⚠ Show rows first with 'show rows' command")
+            return None
+
+        # Click start row
+        if start_row in self.overlay.elements:
+            x, y, _, _ = self.overlay.elements[start_row]
+            pyautogui.click(x, y)
+            time.sleep(0.1)
+
+            # Shift+click end row
+            if end_row in self.overlay.elements:
+                x2, y2, _, _ = self.overlay.elements[end_row]
+                # Hold shift and click
+                pyautogui.keyDown('shift')
+                pyautogui.click(x2, y2)
+                pyautogui.keyUp('shift')
+                print(f"✓ Selected rows {start_row} to {end_row}")
+            else:
+                print(f"⚠ Row {end_row} not found")
+        else:
+            print(f"⚠ Row {start_row} not found")
 
         self.last_command = None
         self.command_count = 0
@@ -1759,12 +2824,10 @@ class TextProcessor:
         elif command == "clear_line":
             # Clear the current line
             controller = keyboard.Controller()
-            # Use Cmd on macOS, Ctrl on Windows/Linux
-            modifier_key = keyboard.Key.cmd if platform.system() == "Darwin" else keyboard.Key.ctrl
-            controller.press(modifier_key)
+            controller.press(keyboard.Key.ctrl)
             controller.press(keyboard.Key.backspace)
             controller.release(keyboard.Key.backspace)
-            controller.release(modifier_key)
+            controller.release(keyboard.Key.ctrl)
             logging.info("Cleared line")
 
 
@@ -2073,6 +3136,49 @@ class DictationEngine:
             frames_copy = self.audio_frames.copy()
         threading.Thread(target=self.transcribe_audio, args=(frames_copy,), daemon=True).start()
 
+    def _inject_text(self, text: str):
+        """
+        Inject text using clipboard paste (most reliable method for Windows).
+
+        Saves and restores the previous clipboard content.
+        """
+        try:
+            import pyperclip
+
+            # Save current clipboard content
+            previous_clipboard = None
+            try:
+                previous_clipboard = pyperclip.paste()
+            except Exception:
+                pass  # Clipboard might be empty or inaccessible
+
+            # Copy our text to clipboard
+            pyperclip.copy(text)
+            time.sleep(0.05)  # Small delay to ensure clipboard is updated
+
+            # Paste using Ctrl+V
+            text_injector = keyboard.Controller()
+            with text_injector.pressed(keyboard.Key.ctrl):
+                text_injector.press("v")
+                text_injector.release("v")
+
+            time.sleep(0.05)  # Small delay before restoring clipboard
+
+            # Restore previous clipboard content
+            if previous_clipboard is not None:
+                try:
+                    pyperclip.copy(previous_clipboard)
+                except Exception as e:
+                    self.logger.debug(f"Failed to restore clipboard: {e}")
+
+        except ImportError:
+            self.logger.error("pyperclip not installed!")
+            print("❌ ERROR: pyperclip is required for text typing")
+            print("   Install with: pip install pyperclip")
+        except Exception as e:
+            self.logger.error(f"Clipboard paste failed: {e}")
+            print(f"⚠ Failed to inject text: {e}")
+
     def transcribe_audio(self, frames: List[bytes]):
         """Transcribe audio and inject text."""
         if not frames:
@@ -2080,19 +3186,24 @@ class DictationEngine:
             return
 
         successful = False
+        t_total_start = time.time()
+        timing_phases = {}
+
         try:
             # Create WAV buffer
+            t_start_wav = time.time()
             wav_buffer = io.BytesIO()
             with wave.open(wav_buffer, "wb") as wf:
                 wf.setnchannels(self.channels)
                 wf.setsampwidth(self.p.get_sample_size(self.format))
                 wf.setframerate(self.sample_rate)
                 wf.writeframes(b"".join(frames))
-
             wav_buffer.seek(0)
+            timing_phases['WAV'] = (time.time() - t_start_wav) * 1000
 
             # Transcribe
             print("🧠 Transcribing...")
+            t_start_transcribe = time.time()
             beam_size = self.config.get("model", "beam_size", default=5)
             language = self.config.get("model", "language", default="en")
 
@@ -2102,33 +3213,44 @@ class DictationEngine:
 
             # Collect text
             text = " ".join(segment.text for segment in segments).strip()
+            timing_phases['Transcribe'] = (time.time() - t_start_transcribe) * 1000
 
             if text:
                 print(f"✓ Transcription: '{text}'")
 
-                # First, check for voice commands (wake word, mouse, etc.)
+                # First, check for voice commands
+                # process_command handles agent stop/start and regular commands
+                t_start_command = time.time()
                 command_result = self.command_processor.process_command(text)
+                timing_phases['Command'] = (time.time() - t_start_command) * 1000
 
-                # In always_listening mode, only process if wake word was detected
-                wake_word_detected = self.command_processor.listening_for_command or (
-                    self.wake_word_always_listening
-                    and self.config.get("wake_word", "word", default="agent").lower()
-                    in text.lower()
-                )
-
-                # If in always_listening mode and no wake word, skip typing
-                if self.wake_word_always_listening and not wake_word_detected:
-                    print("⏭️  No wake word detected, ignoring...")
-                # If command processor returns text OR no command was detected
-                elif command_result is not None or not self.command_processor.listening_for_command:
-                    text_to_process = command_result if command_result is not None else text
+                # If command processor returns text to type, type it
+                # command_result is None if a command was executed
+                # command_result is text if no command was detected or agent is stopped
+                if command_result is not None:
+                    t_start_text = time.time()
+                    text_to_process = command_result
                     processed_text = self.text_processor.process(text_to_process)
 
                     if processed_text:
-                        print("⌨ Typing text...")
-                        text_injector = keyboard.Controller()
-                        text_injector.type(processed_text)
-                        print("✓ Done!\n")
+                        print("⌨️  Typing text...")
+                        self._inject_text(processed_text)
+                        timing_phases['TextType'] = (time.time() - t_start_text) * 1000
+                        print("✓ Done!")
+
+                # Calculate total time
+                timing_phases['TOTAL'] = (time.time() - t_total_start) * 1000
+
+                # Display timing breakdown
+                print("⏱️  Timing breakdown:")
+                print(f"   WAV creation:    {timing_phases['WAV']:>6.0f}ms")
+                print(f"   Transcription:   {timing_phases['Transcribe']:>6.0f}ms")
+                print(f"   Command process: {timing_phases['Command']:>6.0f}ms")
+                if 'TextType' in timing_phases:
+                    print(f"   Text typing:     {timing_phases['TextType']:>6.0f}ms")
+                print(f"   ─────────────────────────")
+                print(f"   TOTAL:           {timing_phases['TOTAL']:>6.0f}ms")
+                print()
             else:
                 print("⚠ Transcription was empty.")
 
@@ -2280,6 +3402,57 @@ class SystemTrayIcon:
         self.icon.run()
 
 
+# --- File Watcher for Auto-Reload ---
+
+
+class CodeChangeHandler(FileSystemEventHandler):
+    """Watches for changes to Python files and config files, then restarts the process."""
+
+    def __init__(self):
+        super().__init__()
+        self.last_restart = 0
+        self.restart_delay = 1.0  # Minimum seconds between restarts
+
+    def on_modified(self, event):
+        """Called when a file is modified."""
+        if event.is_directory:
+            return
+
+        # Only watch specific files
+        filename = os.path.basename(event.src_path)
+        if filename not in ['dictation.py', 'config.yaml', 'number_mappings.yaml']:
+            return
+
+        # Debounce restarts
+        now = time.time()
+        if now - self.last_restart < self.restart_delay:
+            return
+
+        self.last_restart = now
+        print(f"\n🔄 Code change detected in {filename}, restarting...")
+        time.sleep(0.5)  # Brief delay to let file write complete
+
+        # Restart the process
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+
+
+def start_file_watcher():
+    """Start watching for file changes if watchdog is available."""
+    if not WATCHDOG_AVAILABLE:
+        return None
+
+    event_handler = CodeChangeHandler()
+    observer = Observer()
+
+    # Watch current directory
+    watch_path = os.path.dirname(os.path.abspath(__file__))
+    observer.schedule(event_handler, watch_path, recursive=False)
+    observer.start()
+
+    print("🔍 Auto-reload enabled - watching for code changes...")
+    return observer
+
+
 # --- Main Application ---
 
 
@@ -2291,6 +3464,9 @@ def main():
 
     # Load configuration
     config = Config("config.yaml")
+
+    # Start file watcher for auto-reload
+    observer = start_file_watcher()
 
     # Initialize dictation engine
     engine = DictationEngine(config)
@@ -2341,6 +3517,9 @@ def main():
             listener.join()
     except KeyboardInterrupt:
         print("\n\nShutting down...")
+        if observer:
+            observer.stop()
+            observer.join()
         engine.cleanup()
         print("Goodbye!")
 

@@ -28,6 +28,9 @@ pyautogui>=0.9.54
 # Windows UI Automation (Windows-only, for Phase 3 advanced element detection)
 pywinauto>=0.6.8; platform_system=="Windows"
 
+# File system monitoring for auto-reload during development
+watchdog>=3.0.0
+
 # Optional: For CUDA GPU acceleration (if you have CUDA installed)
 # If you don't have CUDA, faster-whisper will automatically fall back to CPU
 # Uncomment the following if you need to install CUDA toolkit dependencies:

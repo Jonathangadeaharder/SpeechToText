@@ -1,0 +1,72 @@
+# Number Mappings for Robust Speech Recognition
+# Maps spoken words (including homophones and common misrecognitions) to numeric values
+# Used for commands like "2 left 4 right" which might be transcribed as "to left for right"
+
+number_words:
+  # Zero
+  "zero": 0
+  "oh": 0
+
+  # One
+  "one": 1
+  "won": 1
+
+  # Two
+  "two": 2
+  "to": 2
+  "too": 2
+
+  # Three
+  "three": 3
+  "tree": 3
+
+  # Four
+  "four": 4
+  "for": 4
+  "fore": 4
+
+  # Five
+  "five": 5
+
+  # Six
+  "six": 6
+  "sicks": 6
+
+  # Seven
+  "seven": 7
+
+  # Eight
+  "eight": 8
+  "ate": 8
+
+  # Nine
+  "nine": 9
+  "nein": 9
+
+  # Ten
+  "ten": 10
+
+  # Eleven through Twenty
+  "eleven": 11
+  "twelve": 12
+  "thirteen": 13
+  "fourteen": 14
+  "fifteen": 15
+  "sixteen": 16
+  "seventeen": 17
+  "eighteen": 18
+  "nineteen": 19
+  "twenty": 20
+
+  # Tens
+  "thirty": 30
+  "forty": 40
+  "fifty": 50
+  "sixty": 60
+  "seventy": 70
+  "eighty": 80
+  "ninety": 90
+
+  # Special cases for common commands
+  "a": 1  # "a left" -> "1 left"
+  "an": 1

@@ -19,14 +19,23 @@ if errorlevel 1 (
     exit /b 1
 )
 
+REM Check if run.py exists
+if not exist "run.py" (
+    echo ERROR: run.py not found
+    echo Please make sure you're running this from the project directory
+    echo.
+    pause
+    exit /b 1
+)
+
 echo Starting dictation tool...
 echo.
 echo Press Ctrl+C to stop the application
 echo ========================================
 echo.
 
-REM Run the dictation tool
-python dictation.py
+REM Run the dictation tool using run.py (new entry point)
+python run.py
 
 REM Check exit code
 if errorlevel 1 (

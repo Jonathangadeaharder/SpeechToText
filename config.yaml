@@ -40,22 +40,28 @@ audio:
 
 # Whisper Model Configuration
 model:
-  # Model size: tiny.en, base.en, small.en, medium.en, large-v2
-  # Larger models are more accurate but slower and use more resources
-  # Using base.en for good quality/speed balance on CPU
-  name: base.en
+  # Model size: tiny.en, base.en, small.en, medium.en, large-v2, large-v3-turbo
+  # Using deepdml/faster-whisper-large-v3-turbo-ct2 for best accuracy
+  # Optimized configuration: beam_size=2, vad_filter=false
+  # Expected performance: ~440ms for 10s audio (well under 500ms target)
+  name: deepdml/faster-whisper-large-v3-turbo-ct2
 
   # Device: cuda (GPU) or cpu
   # Set to "auto" to automatically detect and use GPU if available
-  # Using CPU mode by default to avoid CUDA version conflicts
-  device: cpu
+  # Using GPU for faster transcription
+  device: cuda
 
   # Compute type: int8, int8_float16, float16, float32
-  # int8 uses less VRAM but may be slightly less accurate
-  compute_type: int8
+  # float16 is good for GPU, balances speed and accuracy
+  compute_type: float16
 
   # Beam size for decoding (higher = more accurate but slower)
-  beam_size: 5
+  # Set to 2 for good balance of speed and accuracy
+  beam_size: 2
+
+  # VAD (Voice Activity Detection) filter
+  # Set to false to ensure all speech is transcribed
+  vad_filter: false
 
   # Language (set to null for auto-detection)
   language: en
@@ -201,6 +207,17 @@ wake_word:
   # - "TYPE [text]" - Type dictated text
   #   Example: "AGENT TYPE Hello world"
   #
+  # SCREENSHOT:
+  # - "SCREENSHOT" / "TAKE SCREENSHOT" - Capture screen and save to Pictures/Screenshots
+  # - "REFERENCE SCREENSHOT" / "PASTE SCREENSHOT" - Paste path of latest screenshot
+  # - "REFERENCE SCREENSHOT [N]" - Paste path of Nth screenshot (1=latest, 2=second latest, etc.)
+  #   Examples: "REFERENCE SCREENSHOT 1", "REFERENCE SCREENSHOT 2", "PASTE SCREENSHOT 3"
+  # - "REFERENCE SCREENSHOT LAST [N]" - Paste paths of last N screenshots (newline-separated)
+  #   Examples: "REFERENCE SCREENSHOT LAST 3", "SCREENSHOT LAST 5", "GREEN SHOT LAST 10"
+  #   Also accepts: "SCREENSHOT PATH [N]", "LATEST SCREENSHOT", "SCREENSHOT FILE [N]"
+  #   Note: Also recognizes "GREEN SHOT" as alternative (handles transcription errors)
+  #   Screenshots are saved as: Pictures/Screenshots/screenshot_YYYYMMDD_HHMMSS.png
+  #
   # SCREEN SEGMENTATION (Phase 2 & 3 - Advanced):
   # Phase 2 - Grid Mode:
   # - "SHOW GRID" - Display 9x9 numbered grid overlay (81 cells)
@@ -241,10 +258,10 @@ advanced:
   verbose: true
 
   # Maximum recording duration (seconds, 0 = unlimited)
-  max_recording_duration: 60
+  max_recording_duration: 0
 
   # Number of worker threads for transcription
-  transcription_threads: 1
+  transcription_threads: 16
 
 # Custom Voice Commands
 # Define your own voice commands that can type text, execute files, or press key combinations
@@ -281,6 +298,11 @@ custom_commands:
       action:
         type: "execute_file"
         path: "C:\\path\\to\\your\\script.bat"
+
+    - trigger: "debug"
+      action:
+        type: "execute_file"
+        path: "C:\\Users\\221100002024\\sources\\agents\\buildandvalidate.bat"
 
     # Example 3: Press key combinations
     - trigger: "save file"
@@ -323,10 +345,21 @@ custom_commands:
         type: "key_combination"
         keys: ["alt", "tab"]
 
+    # Admin commands for local admin credentials (copy to clipboard only)
+    - trigger: "admin user"
+      action:
+        type: "copy_to_clipboard"
+        text: ".\\localadm"
+
+    - trigger: "admin password"
+      action:
+        type: "execute_file"
+        path: "C:\\Users\\221100002024\\SpeechToText\\copy_admin_password.bat"
+
   # Notes:
   # - trigger: The phrase you say (case-insensitive, after wake word "AGENT")
-  # - action.type: Must be one of: "type_text", "execute_file", "key_combination"
-  # - action.text: The text to type (supports \n for newlines, \t for tabs)
+  # - action.type: Must be one of: "type_text", "copy_to_clipboard", "execute_file", "key_combination"
+  # - action.text: The text to type or copy (supports \n for newlines, \t for tabs)
   # - action.path: Full path to file/program to execute
   # - action.keys: List of keys to press together
   #   Available keys: ctrl, alt, shift, cmd, tab, enter, space, esc, backspace,
