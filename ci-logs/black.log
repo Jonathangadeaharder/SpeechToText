@@ -1,0 +1,57 @@
+--- /home/user/SpeechToText/test_dictation.py	2025-11-14 12:19:22+00:00
++++ /home/user/SpeechToText/test_dictation.py	2025-11-14 19:54:02.035688+00:00
+@@ -223,13 +223,13 @@
+ 
+ 
+ class TestAudioCallbackBehavior(unittest.TestCase):
+     """Tests for audio callback behavior."""
+ 
+-    @patch('dictation.pyaudio')
+-    @patch('dictation.IS_RECORDING', True)
+-    @patch('dictation.AUDIO_FRAMES', [])
++    @patch("dictation.pyaudio")
++    @patch("dictation.IS_RECORDING", True)
++    @patch("dictation.AUDIO_FRAMES", [])
+     def test_callback_continues_when_recording(self, mock_pyaudio):
+         """Test that callback returns paContinue when recording."""
+         # Import the actual callback function
+         import dictation
+ 
+@@ -242,13 +242,13 @@
+ 
+         # Should return paContinue (0) and data should be appended
+         self.assertEqual(status, 0)
+         self.assertEqual(result_data, in_data)
+ 
+-    @patch('dictation.pyaudio')
+-    @patch('dictation.IS_RECORDING', False)
+-    @patch('dictation.AUDIO_FRAMES', [])
++    @patch("dictation.pyaudio")
++    @patch("dictation.IS_RECORDING", False)
++    @patch("dictation.AUDIO_FRAMES", [])
+     def test_callback_continues_when_not_recording(self, mock_pyaudio):
+         """Test that callback still returns paContinue even when not recording."""
+         # Import the actual callback function
+         import dictation
+ 
+would reformat /home/user/SpeechToText/test_dictation.py
+--- /home/user/SpeechToText/dictation.py	2025-11-14 12:25:30+00:00
++++ /home/user/SpeechToText/dictation.py	2025-11-14 19:54:02.477120+00:00
+@@ -887,11 +887,11 @@
+         # Prevent toggling if always_listening is enabled
+         if self.wake_word_always_listening:
+             print("\n⚠️  Cannot toggle continuous mode when always_listening is enabled")
+             print("   Disable always_listening in config.yaml to use manual continuous mode toggle")
+             return
+-        
++
+         with self.continuous_mode_lock:
+             self.continuous_mode = not self.continuous_mode
+             continuous_mode = self.continuous_mode
+ 
+         if continuous_mode:
+would reformat /home/user/SpeechToText/dictation.py
+
+Oh no! 💥 💔 💥
+2 files would be reformatted.
+Exit code: 
