@@ -81,3 +81,14 @@ dmypy.json
 # Environment variables
 .env
 .env.local
+.venv/
+
+# Local configuration and sensitive files
+.claude/settings.local.json
+*password*.bat
+*admin*.bat
+copy_*.bat
+
+# Build artifacts and pip logs
+3.0.0
+pip-*.log
