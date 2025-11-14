@@ -2,18 +2,31 @@
 
 This document explains how to enforce CI checks before merging pull requests.
 
+## 🚦 Current CI Status: Informational Mode
+
+**The CI is currently configured to provide feedback without blocking PRs.**
+
+- ✅ CI runs on all pull requests
+- ✅ Shows test, lint, and security scan results
+- ⚠️ Does NOT block merges if checks fail (intentional for gradual rollout)
+- 💡 Easy to switch to strict mode later (see below)
+
+This allows you to review CI results and fix any issues before enforcing strict checks.
+
 ## Overview
 
-The repository now includes a comprehensive CI/CD workflow (`.github/workflows/ci.yml`) that runs:
+The repository includes a comprehensive CI/CD workflow (`.github/workflows/ci.yml`) that runs:
 
-1. **Tests** - Runs pytest on Python 3.9, 3.10, and 3.11
+1. **Tests** - Runs pytest on Python 3.9, 3.10, and 3.11 (skips PyAudio in CI)
 2. **Code Quality** - Checks formatting (black), linting (flake8, pylint)
 3. **Security Scans** - Runs bandit and safety checks for vulnerabilities
-4. **Final Gate** - `all-checks-pass` job that requires all checks to succeed
+4. **Final Gate** - `All CI Checks Passed` job that verifies all checks completed
 
-## Enabling Branch Protection
+## Enabling Branch Protection (Optional but Recommended)
 
 To enforce that CI workflows must pass before merging:
+
+**Note:** This is optional initially. You can review CI results first, then enable this later.
 
 ### Step 1: Navigate to Repository Settings
 
@@ -91,8 +104,41 @@ Once enabled:
 
 ### Final Gate Job
 - Waits for all other jobs to complete
-- Only passes if ALL jobs succeed
+- Currently passes if jobs complete (even with errors)
+- In strict mode, only passes if ALL jobs succeed
 - This is the check you require in branch protection
+
+## 🔧 Switching to Strict Mode
+
+Once you've reviewed CI results and fixed any issues, make enforcement strict:
+
+### Option 1: Enforce via Branch Protection (Recommended)
+
+Follow "Enabling Branch Protection" above to require the `All CI Checks Passed` check.
+This blocks merges even in informational mode if jobs are cancelled.
+
+### Option 2: Make CI Workflow Strict
+
+Edit `.github/workflows/ci.yml` line 140:
+
+**Current (informational):**
+```yaml
+if [[ "${{ needs.test.result }}" != "cancelled" && \
+```
+
+**Change to (strict):**
+```yaml
+if [[ "${{ needs.test.result }}" == "success" && \
+```
+
+This makes the final gate require all jobs to succeed, not just complete.
+
+### Recommended Approach
+
+1. Start with Option 1 (branch protection only)
+2. Monitor CI results for a few PRs
+3. Fix any recurring issues
+4. Then enable Option 2 for stricter enforcement
 
 ## Testing the CI Workflow
 
@@ -138,15 +184,34 @@ Enforcing CI checks provides:
 - ✅ **Audit trail** - All changes reviewed and tested
 - ✅ **Prevents accidental merges** - Human errors caught
 
+## Known Limitations
+
+Current CI setup has these known limitations:
+
+1. **PyAudio skipped in CI** - Audio library requires compilation, skipped for faster CI
+2. **Informational mode** - Tests run but don't block (by design for gradual rollout)
+3. **No audio tests** - Tests requiring audio hardware will need mocking
+
+These are acceptable tradeoffs for initial rollout. Can be improved over time.
+
 ## Maintenance
 
 Periodically review and update:
 
-- Python versions in the matrix
-- Security tool versions
-- Coverage thresholds
+- Python versions in the matrix (currently 3.9, 3.10, 3.11)
+- Security tool versions (bandit, safety)
+- Coverage thresholds (if enforced in future)
 - Required checks in branch protection
+- Switch from informational to strict mode when ready
+
+## Next Steps
+
+1. ✅ CI is now running on all PRs (informational mode)
+2. 📊 Review CI results on next few PRs
+3. 🔧 Fix any recurring issues identified
+4. 🔒 Enable branch protection when ready
+5. 💪 Switch to strict mode for full enforcement
 
 ---
 
-**Note**: This setup is part of the security improvements for PR #14. All security vulnerabilities have been addressed, and this CI workflow helps prevent new ones from being introduced.
+**Note**: This CI/CD setup is part of the security improvements for PR #14. All security vulnerabilities have been addressed, and this workflow helps prevent new ones from being introduced. The gradual rollout approach (informational → enforced) ensures a smooth transition without blocking development.
