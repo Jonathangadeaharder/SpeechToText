@@ -3,7 +3,7 @@
 import os
 import tempfile
 import unittest
-from unittest.mock import Mock, MagicMock, patch, call
+from unittest.mock import Mock
 
 import yaml
 from pynput import keyboard
@@ -23,7 +23,7 @@ from src.commands.handlers.keyboard_commands import (
 )
 from src.commands.base import CommandContext
 from src.core.config import Config
-from src.core.events import EventBus, EventType
+from src.core.events import EventBus
 
 
 def create_mock_keyboard():

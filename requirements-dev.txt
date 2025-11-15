@@ -1,0 +1,22 @@
+# Development dependencies for Speech-to-Text Dictation Tool
+# Install with: pip install -r requirements-dev.txt
+
+# Core dependencies (install these first)
+-r requirements.txt
+
+# File system monitoring for auto-reload during development
+watchdog>=3.0.0
+
+# Code formatting
+black==25.11.0
+
+# Linting
+pylint==4.0.2
+flake8==7.3.0
+
+# Type checking
+mypy==1.18.2
+
+# Testing
+pytest==9.0.0
+pytest-cov==7.0.0

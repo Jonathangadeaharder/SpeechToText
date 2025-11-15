@@ -3,7 +3,7 @@
 import os
 import tempfile
 import unittest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 
 import yaml
 from pynput import mouse

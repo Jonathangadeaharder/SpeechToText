@@ -34,8 +34,11 @@ class ConfigLoader:
                 config = yaml.safe_load(f)
             logging.info(f"Configuration loaded from {config_path}")
             return config
-        except Exception as e:
-            logging.error(f"Error loading config: {e}")
+        except (OSError, IOError) as e:
+            logging.exception(f"Error reading config file {config_path}: {e}")
+            return None
+        except yaml.YAMLError as e:
+            logging.exception(f"Error parsing YAML config {config_path}: {e}")
             return None
 
     @staticmethod

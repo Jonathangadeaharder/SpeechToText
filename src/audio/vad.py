@@ -47,6 +47,13 @@ class VoiceActivityDetector:
         if not audio_data or len(audio_data) == 0:
             return False
 
+        # Validate buffer length is a multiple of 2 (for 16-bit audio)
+        if len(audio_data) % 2 != 0:
+            # Truncate odd byte to avoid frombuffer error
+            audio_data = audio_data[:-1]
+            if len(audio_data) == 0:
+                return False
+
         audio_array = np.frombuffer(audio_data, dtype=np.int16)
 
         if len(audio_array) == 0:

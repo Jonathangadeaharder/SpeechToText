@@ -96,3 +96,7 @@ pip-*.log
 bandit-report.json
 safety-report.json
 .github/workflows/*.log
+
+# Build artifacts and version files with hardcoded paths
+3.0.0
+=3.0.0
