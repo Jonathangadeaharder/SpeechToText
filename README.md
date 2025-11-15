@@ -109,6 +109,45 @@ python run.py
 7. Say "copy" → Text copied to clipboard
 ```
 
+### Wake Word Commands
+
+The tool supports voice commands using a wake word (default: "agent"). When enabled, you can:
+
+1. Say the wake word followed by a command (e.g., "agent new line")
+2. Execute text manipulation and formatting commands hands-free
+3. Control dictation behavior through voice
+
+**Available Commands**:
+- `new line` / `new paragraph`: Insert line breaks
+- `undo that` / `scratch that`: Delete the last typed text
+- And more (see `config.yaml` for full list)
+
+**Always Listening Mode**:
+
+For hands-free operation, enable `always_listening` in `config.yaml`:
+
+```yaml
+wake_word:
+  enabled: true
+  always_listening: true  # Microphone always on, listening for wake word
+```
+
+**Important Considerations**:
+- **Privacy**: When enabled, your microphone is continuously active and processing audio
+- **Resource Usage**: Continuous audio processing consumes CPU and battery
+- **Battery Impact**: May significantly reduce battery life on laptops
+- **Security**: Audio is processed locally, not sent to external servers
+- **Opt-In**: Always listening is disabled by default - users must explicitly enable it
+
+**Recommended Usage**:
+- Keep `always_listening: false` (default) for privacy and battery conservation
+- Enable only when hands-free operation is essential
+- Use push-to-talk mode (`Ctrl+Win`) for typical dictation needs
+- Disable when not actively using the tool
+
+**Disabling Always Listening**:
+Set `always_listening: false` in `config.yaml` or use push-to-talk hotkey instead.
+
 ---
 
 ## 📋 System Requirements
@@ -365,6 +404,17 @@ pytest tests/ --cov=src --cov-report=html
 ```
 
 ---
+
+Potential improvements:
+- [x] Wake word support (implemented with "agent" wake word)
+- [x] Continuous dictation mode (implemented)
+- [x] Configurable hotkeys via config file (implemented via config.yaml)
+- [x] Custom vocabulary/commands (implemented via wake word commands)
+- [ ] Custom wake word configuration
+- [ ] Multiple language support
+- [ ] System tray icon with status indicator
+- [ ] Audio feedback (beep on start/stop)
+- [ ] Punctuation commands ("period", "comma", etc.)
 
 ## 📚 Documentation
 

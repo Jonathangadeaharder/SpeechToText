@@ -143,9 +143,16 @@ wake_word:
   enabled: true
 
   # Always listen for wake word (no hotkey needed)
-  # When true, microphone is always on, listening for wake word
-  # When false, you must hold push-to-talk hotkey first
-  always_listening: true
+  # WARNING: Privacy and resource implications when enabled:
+  # - Microphone is continuously active and processing audio
+  # - Continuous CPU usage for audio processing
+  # - May reduce battery life significantly on laptops
+  # - Audio is processed locally (not sent to external servers)
+  # DEFAULT: false (users must opt-in for privacy/battery conservation)
+  # When true: Microphone always on, listening for wake word
+  # When false: Must hold push-to-talk hotkey first
+  # NOTE: Cannot toggle continuous mode hotkey when always_listening is enabled
+  always_listening: false
 
   # Wake word to listen for (case-insensitive)
   # Default: "agent"
@@ -261,13 +268,29 @@ advanced:
   max_recording_duration: 0
 
   # Number of worker threads for transcription
-  transcription_threads: 16
+  transcription_threads: 1
 
 # Custom Voice Commands
 # Define your own voice commands that can type text, execute files, or press key combinations
+#
+# ⚠️  SECURITY WARNING ⚠️
+# The 'execute_file' action type allows running arbitrary programs via voice commands.
+# This is a significant security risk as it could be exploited to run malicious code.
+#
+# ONLY enable this feature if:
+# - You understand the security implications
+# - You trust all users who will have access to this system
+# - You have carefully reviewed all custom commands with execute_file actions
+# - You use only absolute paths to trusted executables
+#
+# RECOMMENDATIONS:
+# - Keep this feature DISABLED unless absolutely necessary
+# - Use type_text, copy_to_clipboard, or key_combination actions instead
+# - Never use user-specific or hardcoded paths
+# - Document all execute_file commands and their purpose
 custom_commands:
-  # Enable custom commands feature
-  enabled: true
+  # Enable custom commands feature (DISABLED by default for security)
+  enabled: false
 
   # Define your custom commands below
   # Each command must have a 'trigger' phrase and an 'action' with type and parameters
@@ -284,25 +307,21 @@ custom_commands:
         text: "Best regards,\nYour Name\nYour Title"
 
     # Example 2: Execute a file or program
+    # IMPORTANT: Always use absolute paths for security
     - trigger: "open calculator"
       action:
         type: "execute_file"
-        path: "calc.exe"  # Windows calculator
+        path: "C:\\Windows\\System32\\calc.exe"  # Windows calculator - absolute path
 
     - trigger: "open notepad"
       action:
         type: "execute_file"
-        path: "notepad.exe"
+        path: "C:\\Windows\\System32\\notepad.exe"  # Notepad - absolute path
 
-    - trigger: "run my script"
-      action:
-        type: "execute_file"
-        path: "C:\\path\\to\\your\\script.bat"
-
-    - trigger: "debug"
-      action:
-        type: "execute_file"
-        path: "C:\\Users\\221100002024\\sources\\agents\\buildandvalidate.bat"
+    # - trigger: "run my script"
+    #   action:
+    #     type: "execute_file"
+    #     path: "C:\\path\\to\\your\\script.bat"
 
     # Example 3: Press key combinations
     - trigger: "save file"
@@ -345,16 +364,11 @@ custom_commands:
         type: "key_combination"
         keys: ["alt", "tab"]
 
-    # Admin commands for local admin credentials (copy to clipboard only)
-    - trigger: "admin user"
-      action:
-        type: "copy_to_clipboard"
-        text: ".\\localadm"
-
-    - trigger: "admin password"
-      action:
-        type: "execute_file"
-        path: "C:\\Users\\221100002024\\SpeechToText\\copy_admin_password.bat"
+    # # Example admin commands (disabled for security - customize for your needs)
+    # - trigger: "admin user"
+    #   action:
+    #     type: "copy_to_clipboard"
+    #     text: ".\\localadm"
 
   # Notes:
   # - trigger: The phrase you say (case-insensitive, after wake word "AGENT")
