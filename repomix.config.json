@@ -1,8 +1,8 @@
 {
   "output": {
     "filePath": "repomix-output.txt",
-    "style": "markdown",
-    "headerText": "# SpeechToText v3.0 - Repomix Codebase Package\n\nComplete codebase packaged with repomix for LLM analysis and code review.",
+    "style": "plain",
+    "headerText": "SpeechToText v3.0 - Repomix Codebase Package\n\nComplete codebase packaged with repomix for LLM analysis and code review.",
     "instructionFilePath": "",
     "removeComments": false,
     "removeEmptyLines": false,
