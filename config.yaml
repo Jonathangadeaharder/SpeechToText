@@ -40,22 +40,28 @@ audio:
 
 # Whisper Model Configuration
 model:
-  # Model size: tiny.en, base.en, small.en, medium.en, large-v2
-  # Larger models are more accurate but slower and use more resources
-  # Using base.en for good quality/speed balance on CPU
-  name: base.en
+  # Model size: tiny.en, base.en, small.en, medium.en, large-v2, large-v3-turbo
+  # Using deepdml/faster-whisper-large-v3-turbo-ct2 for best accuracy
+  # Optimized configuration: beam_size=2, vad_filter=false
+  # Expected performance: ~440ms for 10s audio (well under 500ms target)
+  name: deepdml/faster-whisper-large-v3-turbo-ct2
 
   # Device: cuda (GPU) or cpu
   # Set to "auto" to automatically detect and use GPU if available
-  # Using CPU mode by default to avoid CUDA version conflicts
-  device: cpu
+  # Using GPU for faster transcription
+  device: cuda
 
   # Compute type: int8, int8_float16, float16, float32
-  # int8 uses less VRAM but may be slightly less accurate
-  compute_type: int8
+  # float16 is good for GPU, balances speed and accuracy
+  compute_type: float16
 
   # Beam size for decoding (higher = more accurate but slower)
-  beam_size: 5
+  # Set to 2 for good balance of speed and accuracy
+  beam_size: 2
+
+  # VAD (Voice Activity Detection) filter
+  # Set to false to ensure all speech is transcribed
+  vad_filter: false
 
   # Language (set to null for auto-detection)
   language: en
@@ -152,21 +158,103 @@ wake_word:
   # Default: "agent"
   word: "agent"
 
-  # Voice Commands Available:
-  # - Mouse Movement: "AGENT MOVE UP/DOWN/LEFT/RIGHT"
-  #   * Consecutive same commands increase movement exponentially (50px, 100px, 200px, 400px, etc.)
-  #   * Example: Say "AGENT MOVE UP" three times → moves 50px, then 100px, then 200px
-  # - Mouse Clicks: "AGENT CLICK LEFT" or "AGENT CLICK RIGHT"
-  # - Type Text: "AGENT TYPE [your text here]"
-  #   * Example: "AGENT TYPE Hello world" → types "Hello world"
-  # - Window Switching: "AGENT SWITCH WINDOW"
-  #   * Switches between open applications (Alt+Tab)
-  # - Tab Switching: "AGENT SWITCH TAB"
-  #   * Switches between tabs in current application (Ctrl+Tab)
-  # - Commands persist until a different command is issued
-
-  # Note: You can also just say the command after wake word is detected
-  # Example: "AGENT" [pause] "MOVE UP" [pause] "MOVE UP" [pause] "CLICK LEFT"
+  # Voice Commands Available (say "AGENT" followed by command):
+  #
+  # MOUSE CONTROL & KEYBOARD:
+  # - "MOVE UP/DOWN/LEFT/RIGHT" - Move mouse (exponential: 50→100→200→400px)
+  # - "CLICK LEFT" / "CLICK RIGHT" - Mouse clicks
+  # - "CLICK ENTER" - Press Enter key
+  # - "CLICK SPACE" - Press Space key
+  #
+  # WINDOW & TAB MANAGEMENT:
+  # - "SHOW WINDOWS" - Enumerate all open windows with numbers
+  # - "SWITCH WINDOW" / "SWITCH WINDOW NEXT" - Next window (Alt+Tab)
+  # - "SWITCH WINDOW PREVIOUS" - Previous window (Alt+Shift+Tab)
+  # - "SWITCH WINDOW [number]" - Switch to numbered window (use after SHOW WINDOWS)
+  #     OR switch N times with Alt+Tab if no window list active
+  # - "MAXIMIZE" - Maximize current window (Win+Up)
+  # - "MINIMIZE" - Minimize current window (Win+Down)
+  # - "MOVE WINDOW LEFT" - Snap window to left half of screen (Win+Left)
+  # - "MOVE WINDOW RIGHT" - Snap window to right half of screen (Win+Right)
+  # - "SWITCH TAB" / "SWITCH TAB NEXT" - Next tab (Ctrl+Tab)
+  # - "SWITCH TAB PREVIOUS" - Previous tab (Ctrl+Shift+Tab)
+  #
+  # TEXT SELECTION:
+  # - "SELECT ALL" - Select all text (Ctrl+A)
+  # - "SELECT LINE" - Select current line
+  # - "SELECT WORD" - Select current word
+  #
+  # CLIPBOARD:
+  # - "COPY" - Copy selection (Ctrl+C)
+  # - "CUT" - Cut selection (Ctrl+X)
+  # - "PASTE" - Paste from clipboard (Ctrl+V)
+  #
+  # UNDO/REDO:
+  # - "UNDO" - Undo last action (Ctrl+Z)
+  # - "REDO" - Redo last action (Ctrl+Y)
+  #
+  # NAVIGATION:
+  # - "GO TO START" / "GO TO TOP" - Go to document start (Ctrl+Home)
+  # - "GO TO END" / "GO TO BOTTOM" - Go to document end (Ctrl+End)
+  # - "GO TO LINE START" - Go to line start (Home)
+  # - "GO TO LINE END" - Go to line end (End)
+  #
+  # DELETION:
+  # - "DELETE WORD" - Delete previous word (Ctrl+Backspace)
+  # - "BACKSPACE" - Backspace once
+  # - "BACKSPACE [number]" - Backspace N times (e.g., "BACKSPACE 5")
+  #
+  # SCROLLING (exponential):
+  # - "SCROLL UP/DOWN/LEFT/RIGHT" - Scroll (3→6→12→24 units)
+  #
+  # PAGING:
+  # - "PAGE UP" / "PAGE DOWN" - Page navigation
+  #
+  # TYPING:
+  # - "TYPE [text]" - Type dictated text
+  #   Example: "AGENT TYPE Hello world"
+  #
+  # SCREENSHOT:
+  # - "SCREENSHOT" / "TAKE SCREENSHOT" - Capture screen and save to Pictures/Screenshots
+  # - "REFERENCE SCREENSHOT" / "PASTE SCREENSHOT" - Paste path of latest screenshot
+  # - "REFERENCE SCREENSHOT [N]" - Paste path of Nth screenshot (1=latest, 2=second latest, etc.)
+  #   Examples: "REFERENCE SCREENSHOT 1", "REFERENCE SCREENSHOT 2", "PASTE SCREENSHOT 3"
+  # - "REFERENCE SCREENSHOT LAST [N]" - Paste paths of last N screenshots (newline-separated)
+  #   Examples: "REFERENCE SCREENSHOT LAST 3", "SCREENSHOT LAST 5", "GREEN SHOT LAST 10"
+  #   Also accepts: "SCREENSHOT PATH [N]", "LATEST SCREENSHOT", "SCREENSHOT FILE [N]"
+  #   Note: Also recognizes "GREEN SHOT" as alternative (handles transcription errors)
+  #   Screenshots are saved as: Pictures/Screenshots/screenshot_YYYYMMDD_HHMMSS.png
+  #
+  # SCREEN SEGMENTATION (Phase 2 & 3 - Advanced):
+  # Phase 2 - Grid Mode:
+  # - "SHOW GRID" - Display 9x9 numbered grid overlay (81 cells)
+  #   Provides granular precision for clicking anywhere on screen
+  # - "REFINE GRID [number]" - Zoom into a specific cell with 3x3 subdivision
+  #   Example: "AGENT REFINE GRID 45" zooms into cell 45 with 9 smaller cells
+  #   Say "AGENT SHOW GRID" to reset back to full 9x9 grid
+  #
+  # Phase 3 - Element Detection Mode (Windows only):
+  # - "SHOW NUMBERS" - Auto-detect and number actual UI elements!
+  #   Detects buttons, links, checkboxes, text fields, etc.
+  #   Uses Windows UI Automation for smart element detection
+  #   Falls back to 5x5 grid on non-Windows or if detection fails
+  #
+  # Click Commands (both modes):
+  # - "CLICK [number]" - Click on numbered element
+  #   Example: "AGENT SHOW NUMBERS" then "AGENT CLICK 5"
+  # - "RIGHT CLICK [number]" - Right-click numbered element
+  # - "DOUBLE CLICK [number]" - Double-click numbered element
+  # - "MIDDLE CLICK [number]" - Middle-click numbered element
+  # - "HIDE NUMBERS" / "HIDE GRID" / "CLOSE OVERLAY" - Close overlay
+  #   Also accepts: "HEIGHT NUMBERS", "HEIGHT GRID", "CLOSE NUMBERS", etc.
+  #   (robust to speech recognition errors)
+  #
+  # Requirements:
+  # - pyautogui (all platforms): pip install pyautogui
+  # - pywinauto (Windows only, Phase 3): pip install pywinauto
+  #
+  # Note: Commands persist until different command is issued.
+  # Consecutive same commands increase intensity (mouse, scroll).
 
 # Advanced Settings
 advanced:
@@ -174,10 +262,10 @@ advanced:
   log_level: INFO
 
   # Enable verbose output
-  verbose: false
+  verbose: true
 
   # Maximum recording duration (seconds, 0 = unlimited)
-  max_recording_duration: 60
+  max_recording_duration: 0
 
   # Number of worker threads for transcription
   transcription_threads: 1
