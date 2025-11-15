@@ -82,3 +82,17 @@ dmypy.json
 .env
 .env.local
 .venv/
+
+# Local configuration and sensitive files
+.claude/settings.local.json
+*password*.bat
+*admin*.bat
+copy_admin_*.bat
+
+# Pip logs
+pip-*.log
+
+# CI/CD artifacts
+bandit-report.json
+safety-report.json
+.github/workflows/*.log
