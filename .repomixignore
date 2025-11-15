@@ -1,0 +1,73 @@
+# Repomix ignore file - files and directories to exclude from repomix output
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+
+# Build artifacts
+build/
+dist/
+*.whl
+
+# Test and coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.hypothesis/
+coverage.xml
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Models and binary files
+models/*.bin
+*.wav
+*.mp3
+*.flac
+*.ogg
+
+# Logs
+*.log
+pip-*.log
+
+# Git
+.git/
+.gitignore
+
+# CI/CD artifacts
+bandit-report.json
+safety-report.json
+.github/workflows/*.log
+
+# Security-sensitive files
+.env
+.env.local
+.claude/settings.local.json
+*password*.bat
+*admin*.bat
+copy_admin_*.bat
+
+# Documentation that's typically very large
+node_modules/
+
+# Previous repomix outputs
+repomix-output.txt

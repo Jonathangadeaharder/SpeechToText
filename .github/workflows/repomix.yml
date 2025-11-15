@@ -1,0 +1,66 @@
+name: Repomix Codebase Packaging
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  repomix:
+    name: Package Codebase with Repomix
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install repomix
+      run: npm install -g repomix
+
+    - name: Generate repomix output
+      run: |
+        repomix --output repomix-output.txt
+        echo "✅ Repomix packaging completed"
+
+    - name: Display repomix stats
+      run: |
+        if [ -f repomix-output.txt ]; then
+          FILE_SIZE=$(du -h repomix-output.txt | cut -f1)
+          LINE_COUNT=$(wc -l < repomix-output.txt)
+          echo "📦 Repomix Output Stats:"
+          echo "  File size: $FILE_SIZE"
+          echo "  Line count: $LINE_COUNT"
+        fi
+
+    - name: Upload repomix artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: repomix-codebase-${{ github.sha }}
+        path: repomix-output.txt
+        retention-days: 30
+        if-no-files-found: error
+
+    - name: Create summary
+      run: |
+        echo "## 📦 Repomix Codebase Package" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Successfully packaged codebase using repomix" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ -f repomix-output.txt ]; then
+          FILE_SIZE=$(du -h repomix-output.txt | cut -f1)
+          LINE_COUNT=$(wc -l < repomix-output.txt)
+          echo "**Package Details:**" >> $GITHUB_STEP_SUMMARY
+          echo "- File size: $FILE_SIZE" >> $GITHUB_STEP_SUMMARY
+          echo "- Line count: $LINE_COUNT" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+        fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📥 Download the artifact from the workflow run page." >> $GITHUB_STEP_SUMMARY
