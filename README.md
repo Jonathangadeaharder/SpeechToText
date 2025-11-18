@@ -525,6 +525,9 @@ Contributions welcome! Please:
 # Install dev dependencies
 pip install -r requirements-dev.txt
 
+# Install structurelint (project structure linter)
+make install-structurelint
+
 # Run tests
 pytest tests/ -v
 
@@ -534,7 +537,28 @@ pytest tests/ --cov=src --cov-report=html
 # Lint code
 flake8 src/ tests/
 pylint src/ tests/
+
+# Check project structure
+make structure
+
+# Run all checks (formatting, linting, structure, tests)
+make all
 ```
+
+#### Available Make Commands
+- `make lint` - Run all linters (flake8, pylint, black check)
+- `make format` - Auto-format code with black
+- `make test` - Run pytest tests
+- `make structure` - Check project structure with structurelint
+- `make all` - Run all checks
+- `make clean` - Remove cache files
+
+#### Project Structure Linting
+This project uses [structurelint](https://github.com/Jonathangadeaharder/structurelint) to enforce architectural integrity and project organization. The configuration is in `.structurelint.yml` and includes:
+- Filesystem structure rules (depth limits, file counts, naming conventions)
+- Architectural layer enforcement (ui → commands → core)
+- Test adjacency requirements
+- Dead code detection
 
 ---
 
