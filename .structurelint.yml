@@ -1,5 +1,5 @@
 # structurelint configuration
-# Optimized for best practices and strict enforcement
+# Comprehensive enforcement of best practices
 # Documentation: https://github.com/structurelint/structurelint
 
 root: true
@@ -25,72 +25,179 @@ exclude:
   - launch.bat  # Legitimate utility script
 
 rules:
-  # Phase 0: Basic filesystem structure
-  # Strict limits based on actual project structure (max depth: 2, max files: 8)
+  # ============================================================================
+  # Phase 0: Filesystem Structure & Organization
+  # ============================================================================
+
+  # Depth limits - prevent unmanageable nesting
   max-depth:
     max: 5  # Currently 2, allows growth but prevents deep nesting
 
+  # File count limits - keep directories focused
   max-files-in-dir:
     max: 20  # Currently 8 max, allows growth while maintaining focus
 
+  # Subdirectory limits - prevent sprawl
   max-subdirs:
     max: 10  # Prevents excessive directory sprawl
 
-  # Naming conventions - enforce Python snake_case strictly
+  # Naming conventions - strict enforcement
   naming-convention:
+    # Python source files
     "**/*.py": "snake_case"
-    "**/*.md": "UPPERCASE"  # UPPERCASE for documentation (README, ARCHITECTURE, etc.)
+
+    # Documentation (uppercase with underscores: README, ARCHITECTURE, MIGRATION)
+    "**/*.md": "UPPERCASE"
+
+    # Configuration files
     "**/*.yml": "kebab-case"
     "**/*.yaml": "kebab-case"
+    "**/*.json": "kebab-case"
+    "**/*.toml": "kebab-case"
 
-  # File existence rules - security focused (no required files in subdirs)
+    # Shell scripts
+    "**/*.sh": "kebab-case"
+    "**/*.bash": "kebab-case"
+
+    # Batch files (Windows)
+    "**/*.bat": "snake_case"
+    "**/*.cmd": "snake_case"
+
+  # File existence rules - security and standards enforcement
   file-existence:
-    # Security: No secrets or credentials anywhere
+    # ===== Security: PROHIBIT secrets and credentials =====
     ".env": "exists:0"
     "*.env": "exists:0"
     ".env.*": "exists:0"
     "*.secret": "exists:0"
     "*.secrets": "exists:0"
     "**/credentials.json": "exists:0"
+    "**/credentials.yaml": "exists:0"
+    "**/credentials.yml": "exists:0"
+    "**/secrets.json": "exists:0"
     "**/secrets.yaml": "exists:0"
     "**/secrets.yml": "exists:0"
     "**/*.pem": "exists:0"
     "**/*.key": "exists:0"
+    "**/*.p12": "exists:0"
+    "**/*.pfx": "exists:0"
+    "**/id_rsa": "exists:0"
+    "**/id_dsa": "exists:0"
+    "**/id_ecdsa": "exists:0"
+    "**/id_ed25519": "exists:0"
 
-  # Disallowed patterns - prevent clutter and security risks
+    # ===== Prohibit compiled/generated files =====
+    "**/*.pyc": "exists:0"
+    "**/*.pyo": "exists:0"
+    "**/*.pyd": "exists:0"
+    "**/.Python": "exists:0"
+
+    # ===== Prohibit database files =====
+    "**/*.db": "exists:0"
+    "**/*.sqlite": "exists:0"
+    "**/*.sqlite3": "exists:0"
+
+    # ===== Prohibit log files in repo =====
+    "**/*.log": "exists:0"
+    "**/logs/*.log": "exists:0"
+
+  # Disallowed patterns - comprehensive blocklist
   disallowed-patterns:
-    # Temporary files
+    # ===== Temporary files =====
     - "*.tmp"
     - "*.temp"
     - "*~"
+    - "*.cache"
+    - "*.pid"
 
-    # Backup files
+    # ===== Backup files =====
     - "*.bak"
     - "*.backup"
     - "*.old"
+    - "*.orig"
+    - "*.save"
+    - "*-old"
+    - "*-backup"
+    - "*-copy"
 
-    # Editor files
+    # ===== Editor files =====
+    # macOS
     - ".DS_Store"
+    - ".AppleDouble"
+    - ".LSOverride"
+
+    # Windows
     - "Thumbs.db"
+    - "ehthumbs.db"
+    - "Desktop.ini"
+
+    # Vim
     - "*.swp"
     - "*.swo"
-    - "*~"
+    - "*.swn"
     - ".*.sw?"
+    - "*~"
 
-    # IDE files (should be in .gitignore)
-    - ".idea"
+    # Emacs
+    - "*#"
+    - ".#*"
+    - "*.elc"
+
+    # VS Code
     - ".vscode/settings.json"  # Allow .vscode but not committed settings
+    - ".vscode/*.log"
 
-    # Security
+    # JetBrains IDEs
+    - ".idea"
+    - "*.iml"
+    - "*.ipr"
+    - "*.iws"
+
+    # ===== Security =====
     - "*.pem"
     - "*.key"
     - "*secret*"
     - "*credential*"
     - "*.env*"
+    - "id_rsa*"
+    - "id_dsa*"
 
-  # Regex pattern matching removed - structurelint implementation has issues with this feature
+    # ===== Build artifacts =====
+    - "*.o"
+    - "*.a"
+    - "*.so"
+    - "*.dylib"
+    - "*.dll"
+    - "*.exe"
+    - "*.out"
 
-  # Test file validation - enforce comprehensive testing
+    # ===== Python compiled =====
+    - "*.pyc"
+    - "*.pyo"
+    - "*.pyd"
+    - "__pycache__"
+    - "*.egg"
+    - "*.egg-info"
+
+    # ===== Package manager locks (uncomment if not using)
+    # - "package-lock.json"
+    # - "yarn.lock"
+    # - "Pipfile.lock"
+
+    # ===== Coverage and test artifacts =====
+    - ".coverage"
+    - "coverage.xml"
+    - "*.cover"
+    - ".hypothesis"
+    - ".pytest_cache"
+    - "nosetests.xml"
+    - "test-results.xml"
+
+  # ============================================================================
+  # Phase 3: Test Validation
+  # ============================================================================
+
+  # Test adjacency - enforce comprehensive test coverage
   test-adjacency:
     pattern: "separate"
     test-dir: "tests/unit"
@@ -103,17 +210,21 @@ rules:
       - "run.py"            # Entry point script
       - "test_dictation.py" # Root-level test file (should eventually move)
       - "**/test_*.py"      # Test files themselves
-      # Removed src/commands/base.py - it SHOULD have tests!
 
+  # Test location - enforce test organization
   test-location:
     integration-test-dir: "tests/integration"
-    allow-adjacent: false
+    allow-adjacent: false  # Force tests into tests/ directory
     exemptions:
       - "testdata/**"
       - "tests/**"
-      - "test_*.py"  # Temporary: root-level test files (migrate to tests/)
+      - "test_*.py"  # Temporary: root-level test files
 
-# Phase 1: Architectural layers - strict dependency enforcement
+# ==============================================================================
+# Phase 1: Architectural Layers
+# ==============================================================================
+# Strict dependency enforcement prevents architectural violations
+
 layers:
   - name: "ui"
     description: "User interface layer - overlays and UI components"
@@ -153,7 +264,11 @@ layers:
       - "src/core/**"
     can-import: []  # Core should have NO dependencies on other layers
 
-# Phase 2: Dead code detection
+# ==============================================================================
+# Phase 2: Dead Code Detection
+# ==============================================================================
+# Identifies orphaned files and unused exports
+
 entrypoints:
   - "src/main.py"
   - "run.py"
@@ -161,14 +276,64 @@ entrypoints:
   - "tests/**/test_*.py"
   - "test_*.py"
 
-# Phase 4: File content templates (documentation standards)
+# ==============================================================================
+# Phase 4: File Content Templates
+# ==============================================================================
+# Enforce documentation standards and required file sections
+
 file-templates:
+  # Python source files - require module docstrings
   "**/*.py":
     required-sections:
-      - pattern: '^""".*"""'  # Require module docstring
+      - pattern: '^""".*"""'
         description: "Python files must have module docstring"
 
-  "src/**/README.md":
+  # Python __init__ files - allow empty or docstring
+  "**/__init__.py":
     required-sections:
-      - pattern: "^#"  # Require heading
-        description: "README files must have at least one heading"
+      - pattern: '^(""".*"""|$)'
+        description: "Init files can be empty or have docstring"
+
+  # README files - require structure
+  "README.md":
+    required-sections:
+      - pattern: "^#"
+        description: "README must have headings"
+      - pattern: "(?i)(installation|install|setup)"
+        description: "README must document installation"
+      - pattern: "(?i)(usage|example|getting started)"
+        description: "README must document usage"
+
+  # Architecture docs - require structure
+  "ARCHITECTURE.md":
+    required-sections:
+      - pattern: "(?i)(overview|architecture)"
+        description: "Architecture doc must have overview"
+      - pattern: "(?i)(component|module|layer)"
+        description: "Architecture doc must describe components"
+
+  # Contributing guide
+  "CONTRIBUTING.md":
+    required-sections:
+      - pattern: "(?i)(setup|development)"
+        description: "Contributing guide must explain setup"
+      - pattern: "(?i)(test|testing)"
+        description: "Contributing guide must explain testing"
+
+# ==============================================================================
+# Clone Detection Configuration
+# ==============================================================================
+# Detects code duplication for refactoring opportunities
+
+clone-detection:
+  min-tokens: 30       # Minimum 30 tokens to consider as clone
+  min-lines: 5         # Minimum 5 lines to consider as clone
+  k-gram-size: 20      # Window size for similarity detection
+  cross-file-only: true  # Only report cross-file clones
+  exclude-patterns:
+    - "**/*_test.py"   # Exclude test files (test similarity is OK)
+    - "**/test_*.py"   # Exclude test files
+    - "**/__init__.py" # Exclude init files (often similar)
+    - "**/conftest.py" # Exclude pytest config
+    - "legacy_archive/**"
+    - "examples/**"
