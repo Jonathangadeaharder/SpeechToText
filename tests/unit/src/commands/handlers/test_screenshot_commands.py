@@ -1,29 +1,15 @@
 """Unit tests for screenshot command implementations."""
 
-import os
-import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch, call
-
-import yaml
-from pynput import keyboard
+from unittest.mock import Mock, patch
 
 from src.commands.handlers.screenshot_commands import (
     ScreenshotCommand,
     ReferenceScreenshotCommand
 )
-from src.commands.base import CommandContext, PRIORITY_MEDIUM
-from src.core.config import Config
-from src.core.events import EventBus
-
-
-def create_mock_keyboard():
-    """Create a mock keyboard controller that supports context manager protocol."""
-    mock = Mock(spec=keyboard.Controller)
-    mock.pressed.return_value.__enter__ = Mock(return_value=None)
-    mock.pressed.return_value.__exit__ = Mock(return_value=False)
-    return mock
+from src.commands.base import PRIORITY_MEDIUM
+from tests.unit.test_utils import BaseCommandTest
 
 
 class TestScreenshotCommandInit(unittest.TestCase):
@@ -64,31 +50,8 @@ class TestScreenshotCommandMatches(unittest.TestCase):
         assert cmd.matches("reference screenshot") is False
 
 
-class TestScreenshotCommandExecute(unittest.TestCase):
+class TestScreenshotCommandExecute(BaseCommandTest):
     """Test ScreenshotCommand execution."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        self.config_data = {"advanced": {"log_level": "INFO"}}
-        self.temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False)
-        yaml.dump(self.config_data, self.temp_file)
-        self.temp_file.close()
-
-        self.config = Config(self.temp_file.name)
-        self.mock_keyboard = create_mock_keyboard()
-        self.mock_mouse = Mock()
-        self.event_bus = EventBus()
-
-        self.context = CommandContext(
-            config=self.config,
-            keyboard_controller=self.mock_keyboard,
-            mouse_controller=self.mock_mouse,
-            event_bus=self.event_bus,
-        )
-
-    def tearDown(self):
-        """Clean up test fixtures."""
-        os.remove(self.temp_file.name)
 
     @patch('pathlib.Path.mkdir')
     @patch('pyautogui.screenshot')
@@ -221,31 +184,8 @@ class TestReferenceScreenshotCommandIsMultiRequest(unittest.TestCase):
         assert count == 1
 
 
-class TestReferenceScreenshotCommandExecute(unittest.TestCase):
+class TestReferenceScreenshotCommandExecute(BaseCommandTest):
     """Test ReferenceScreenshotCommand execution."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        self.config_data = {"advanced": {"log_level": "INFO"}}
-        self.temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False)
-        yaml.dump(self.config_data, self.temp_file)
-        self.temp_file.close()
-
-        self.config = Config(self.temp_file.name)
-        self.mock_keyboard = create_mock_keyboard()
-        self.mock_mouse = Mock()
-        self.event_bus = EventBus()
-
-        self.context = CommandContext(
-            config=self.config,
-            keyboard_controller=self.mock_keyboard,
-            mouse_controller=self.mock_mouse,
-            event_bus=self.event_bus,
-        )
-
-    def tearDown(self):
-        """Clean up test fixtures."""
-        os.remove(self.temp_file.name)
 
     @patch('pathlib.Path.exists', return_value=False)
     def test_execute_no_directory(self, mock_exists):

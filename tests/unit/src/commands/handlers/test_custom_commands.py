@@ -1,25 +1,11 @@
 """Unit tests for custom command implementations."""
 
-import os
-import tempfile
 import unittest
-from unittest.mock import Mock, MagicMock, patch, call
-
-import yaml
-from pynput import keyboard
+from unittest.mock import Mock, patch
 
 from src.commands.handlers.custom_commands import CustomCommand, load_custom_commands
-from src.commands.base import CommandContext, PRIORITY_HIGH
-from src.core.config import Config
-from src.core.events import EventBus
-
-
-def create_mock_keyboard():
-    """Create a mock keyboard controller that supports context manager protocol."""
-    mock = Mock(spec=keyboard.Controller)
-    mock.pressed.return_value.__enter__ = Mock(return_value=None)
-    mock.pressed.return_value.__exit__ = Mock(return_value=False)
-    return mock
+from src.commands.base import PRIORITY_HIGH
+from tests.unit.test_utils import BaseCommandTest
 
 
 class TestCustomCommandInit(unittest.TestCase):
@@ -76,31 +62,8 @@ class TestCustomCommandMatches(unittest.TestCase):
         assert cmd.matches("admin password") is False
 
 
-class TestCustomCommandTypeText(unittest.TestCase):
+class TestCustomCommandTypeText(BaseCommandTest):
     """Test type_text action."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        self.config_data = {"advanced": {"log_level": "INFO"}}
-        self.temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False)
-        yaml.dump(self.config_data, self.temp_file)
-        self.temp_file.close()
-
-        self.config = Config(self.temp_file.name)
-        self.mock_keyboard = create_mock_keyboard()
-        self.mock_mouse = Mock()
-        self.event_bus = EventBus()
-
-        self.context = CommandContext(
-            config=self.config,
-            keyboard_controller=self.mock_keyboard,
-            mouse_controller=self.mock_mouse,
-            event_bus=self.event_bus,
-        )
-
-    def tearDown(self):
-        """Clean up test fixtures."""
-        os.remove(self.temp_file.name)
 
     def test_execute_type_text(self):
         """Test type_text action execution."""
@@ -129,31 +92,8 @@ class TestCustomCommandTypeText(unittest.TestCase):
         self.mock_keyboard.type.assert_not_called()
 
 
-class TestCustomCommandCopyToClipboard(unittest.TestCase):
+class TestCustomCommandCopyToClipboard(BaseCommandTest):
     """Test copy_to_clipboard action."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        self.config_data = {"advanced": {"log_level": "INFO"}}
-        self.temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False)
-        yaml.dump(self.config_data, self.temp_file)
-        self.temp_file.close()
-
-        self.config = Config(self.temp_file.name)
-        self.mock_keyboard = create_mock_keyboard()
-        self.mock_mouse = Mock()
-        self.event_bus = EventBus()
-
-        self.context = CommandContext(
-            config=self.config,
-            keyboard_controller=self.mock_keyboard,
-            mouse_controller=self.mock_mouse,
-            event_bus=self.event_bus,
-        )
-
-    def tearDown(self):
-        """Clean up test fixtures."""
-        os.remove(self.temp_file.name)
 
     @patch('subprocess.run')
     @patch('os.name', 'nt')
@@ -189,31 +129,8 @@ class TestCustomCommandCopyToClipboard(unittest.TestCase):
         mock_pyperclip.copy.assert_called_once_with("Test Text")
 
 
-class TestCustomCommandExecuteFile(unittest.TestCase):
+class TestCustomCommandExecuteFile(BaseCommandTest):
     """Test execute_file action."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        self.config_data = {"advanced": {"log_level": "INFO"}}
-        self.temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False)
-        yaml.dump(self.config_data, self.temp_file)
-        self.temp_file.close()
-
-        self.config = Config(self.temp_file.name)
-        self.mock_keyboard = create_mock_keyboard()
-        self.mock_mouse = Mock()
-        self.event_bus = EventBus()
-
-        self.context = CommandContext(
-            config=self.config,
-            keyboard_controller=self.mock_keyboard,
-            mouse_controller=self.mock_mouse,
-            event_bus=self.event_bus,
-        )
-
-    def tearDown(self):
-        """Clean up test fixtures."""
-        os.remove(self.temp_file.name)
 
     @patch('subprocess.Popen')
     @patch('os.path.exists', return_value=True)
@@ -246,31 +163,8 @@ class TestCustomCommandExecuteFile(unittest.TestCase):
         mock_exists.assert_called_once()
 
 
-class TestCustomCommandKeyCombination(unittest.TestCase):
+class TestCustomCommandKeyCombination(BaseCommandTest):
     """Test key_combination action."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        self.config_data = {"advanced": {"log_level": "INFO"}}
-        self.temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False)
-        yaml.dump(self.config_data, self.temp_file)
-        self.temp_file.close()
-
-        self.config = Config(self.temp_file.name)
-        self.mock_keyboard = create_mock_keyboard()
-        self.mock_mouse = Mock()
-        self.event_bus = EventBus()
-
-        self.context = CommandContext(
-            config=self.config,
-            keyboard_controller=self.mock_keyboard,
-            mouse_controller=self.mock_mouse,
-            event_bus=self.event_bus,
-        )
-
-    def tearDown(self):
-        """Clean up test fixtures."""
-        os.remove(self.temp_file.name)
 
     def test_execute_key_combination(self):
         """Test key_combination action."""
