@@ -1,0 +1,45 @@
+name: Generate Repomix Codebase
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  generate-repomix:
+    name: Generate Repomix Output
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Install repomix
+      run: |
+        npm install -g repomix
+    
+    - name: Generate repomix output
+      run: |
+        repomix --output repomix-output.txt
+    
+    - name: Upload repomix output
+      uses: actions/upload-artifact@v4
+      with:
+        name: repomix-codebase-output
+        path: repomix-output.txt
+        retention-days: 30
+    
+    - name: Display summary
+      run: |
+        echo "📦 Repomix codebase output generated successfully!"
+        echo "File size: $(du -h repomix-output.txt | cut -f1)"
+        echo "Line count: $(wc -l < repomix-output.txt)"

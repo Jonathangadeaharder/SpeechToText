@@ -96,3 +96,6 @@ pip-*.log
 bandit-report.json
 safety-report.json
 .github/workflows/*.log
+
+# Repomix output
+repomix-output.*
