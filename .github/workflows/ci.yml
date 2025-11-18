@@ -82,6 +82,24 @@ jobs:
         find . -name "*.py" -type f -exec pylint {} + --exit-zero || echo "Pylint completed"
       continue-on-error: true
 
+    - name: Set up Go for structurelint
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+      continue-on-error: true
+
+    - name: Install structurelint
+      run: |
+        git clone https://github.com/Jonathangadeaharder/structurelint.git /tmp/structurelint
+        cd /tmp/structurelint
+        go build -o /usr/local/bin/structurelint ./cmd/structurelint
+      continue-on-error: true
+
+    - name: Check project structure with structurelint
+      run: |
+        structurelint . || echo "Structurelint check completed with issues"
+      continue-on-error: true
+
   security:
     name: Security Checks
     runs-on: ubuntu-latest
