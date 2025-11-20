@@ -4,11 +4,11 @@
 PyAudio==0.2.14
 
 # Keyboard listener and controller for hotkeys and text injection
-pynput==1.7.6
+pynput==1.8.1
 
 # Optimized Whisper implementation with GPU support and int8 quantization
 # This is the key library that enables running quality models in 2GB VRAM
-faster-whisper==1.0.3
+faster-whisper==1.2.1
 
 # Configuration file handling
 PyYAML>=6.0
@@ -44,12 +44,12 @@ watchdog>=3.0.0
 black==25.11.0
 
 # Linting
-pylint==4.0.2
+pylint==4.0.3
 flake8==7.3.0
 
 # Type checking
 mypy==1.18.2
 
 # Testing
-pytest==9.0.0
+pytest==9.0.1
 pytest-cov==7.0.0
